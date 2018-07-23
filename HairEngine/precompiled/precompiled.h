@@ -40,7 +40,7 @@
 * Assertion
 */
 #ifdef NDEBUG
-#define HairEngine_Assert(expr_) ((void)0)
+#define HairEngine_DebugAssert(expr_) ((void)0)
 #else
-#define HairEngine_Assert(expr_) if(!(expr_))Error("Assertion \"%s\" failed in \"%s\", line %d.", #expr_, __FILE__, __LINE__)
+#define HairEngine_DebugAssert(expr_) assert(expr_)
 #endif

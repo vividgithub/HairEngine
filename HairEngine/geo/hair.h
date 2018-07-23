@@ -19,6 +19,7 @@
 namespace HairEngine {
 
 	class Hair;
+	class Integrator;
 
 	std::ostream & operator<<(std::ostream & os, const Hair & hair);
 
@@ -26,6 +27,9 @@ namespace HairEngine {
 	 * A representation for the hair geometry for the solver
 	 */
 	class Hair {
+
+		friend class Integrator;
+
 	HairEngine_Public:
 		struct Strand;
 
@@ -221,6 +225,36 @@ namespace HairEngine {
 			init(hairFile, affine);
 		}
 
+		/**
+		 * Get the end pointer of the particles
+		 */
+		Particle *particleEnd() { return particles + nparticle; }
+
+		/**
+		* Get the end pointer of the particles
+		*/
+		const Particle *particleEnd() const { return particles + nparticle; }
+
+		/**
+		 * Get the end pointer of the segments
+		 */
+		Segment *segmentEnd() { return segments + nsegment; }
+
+		/**
+		 * Get the end pointer of the segments
+		 */
+		const Segment *segmentEnd() const { return segments + nsegment; }
+
+		/**
+		 * Get the end pointer of the strands
+		 */
+		Strand *strandEnd() { return strands + nstrand; }
+
+		/**
+		 * Get the end pointer of the strands
+		 */
+		const Strand *strandEnd() const { return strands + nstrand;  }
+
 	HairEngine_Protected:
 
 		/**
@@ -350,7 +384,7 @@ namespace HairEngine {
 		 *
 		 * @param filePath The file path for the .hair file format
 		 */
-		void writeToFile(const std::string & filePath) {
+		void writeToFile(const std::string & filePath) const {
 			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
 
 			FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(nparticle));
