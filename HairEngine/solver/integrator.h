@@ -26,7 +26,7 @@ namespace HairEngine {
 		 * @param restTransform The initial transform for simulation
 		 */
 		Integrator(std::shared_ptr<Hair> hairPtr, const Eigen::Affine3f & restTransform)
-			: hairPtr(hairPtr), currentTransform(restTransform) {
+			: hairPtr(hairPtr), previousTransform(restTransform) {
 			
 			// Perform a transform to the hair geometry
 			for (auto p = hairPtr->particles; p != hairPtr->particleEnd(); ++p) {
@@ -62,19 +62,24 @@ namespace HairEngine {
 		 * Simulate the hair geometry with simulation time t and the final transform
 		 */
 		void simulate(float t, const Eigen::Affine3f & transform) {
+			++currentFrameNumber;
+
 			// Prepare the IntegrationInfo
-			IntegrationInfo info(t, transform, currentTransform);
+			IntegrationInfo info(t, transform, previousTransform, currentFrameNumber);
 
 			for (auto solverPtr : solverPtrs) {
 				solverPtr->solve(*hairPtr, info);
 			}
 
-			currentTransform = transform;
+			previousTransform = transform;
 		}
 
 	HairEngine_Protected:
 		std::shared_ptr<Hair> hairPtr; ///< The simulated hair geometry
-		Eigen::Affine3f currentTransform; ///< The affine transform of current hair geometry
+
+		Eigen::Affine3f previousTransform; ///< The affine transform of previous hair geometry
+		size_t currentFrameNumber = 0; ///< Current frame number
+
 		std::vector<std::shared_ptr<Solver>> solverPtrs; ///< The solver pointer that use to guide the simulation
 	};
 }

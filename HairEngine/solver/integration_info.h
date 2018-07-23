@@ -31,11 +31,23 @@ namespace HairEngine {
 			Eigen::Affine3f previousTransform; ///< Previous affine transofrm, long definition
 		};
 
+		union {
+			size_t f; ///< Frame number, short definition
+			size_t frameNumber;  ///< Frame number, long definition
+		};
+
 		/**
 		 * Constructor
 		 */
-		IntegrationInfo(float simulationTime, Eigen::Affine3f transform, Eigen::Affine3f previousTransform):
-			t(simulationTime), tr(transform), ptr(previousTransform) {}
+		IntegrationInfo(float simulationTime, const Eigen::Affine3f &transform, const Eigen::Affine3f &previousTransform, size_t frameNumber):
+			t(simulationTime), tr(transform), ptr(previousTransform), f(frameNumber) {}
+
+		IntegrationInfo(const IntegrationInfo & rhs) {
+			t = rhs.t;
+			tr = rhs.tr;
+			ptr = rhs.ptr;
+			f = rhs.f;
+		}
 
 		/**
 		 * The integration info can be seem as an interval for simulation. It can be divided the whole simulation interval 
@@ -47,13 +59,13 @@ namespace HairEngine {
 		 * @param t1 The starting time (0.0 <= t1)
 		 * @param t2 The ending time (t1 < t2 <= 1.0)
 		 */
-		IntegrationInfo lerp(float t1, float t2) {
+		IntegrationInfo lerp(float t1, float t2) const {
 			HairEngine_DebugAssert(0.0 <= t1 && t1 < t2 && t2 <= 1.0);
 
 			auto lerpedPreviousTransform = MathUtility::lerp(t1, ptr, tr);
 			auto lerpedTransform = MathUtility::lerp(t2, ptr, tr);
 
-			return IntegrationInfo((t2 - t1) * t, lerpedTransform, lerpedPreviousTransform);
+			return IntegrationInfo((t2 - t1) * t, lerpedTransform, lerpedPreviousTransform, f);
 		}
 
 		/**
@@ -65,7 +77,7 @@ namespace HairEngine {
 		 * @param end The end iterator which yield float value
 		 */
 		template <typename FloatCastableIterator>
-		std::vector<IntegrationInfo> lerp(FloatCastableIterator begin, FloatCastableIterator end) {
+		std::vector<IntegrationInfo> lerp(FloatCastableIterator begin, FloatCastableIterator end) const {
 			auto preT = *begin;
 			auto preTransform = MathUtility::lerp(preT, ptr, tr);
 
@@ -75,11 +87,13 @@ namespace HairEngine {
 				auto currentTransform = MathUtility::lerp(currentT, ptr, tr);
 
 				// Construct an IntegrationInfo
-				infos.emplace_back((currentT - preT) * t, preTransform, currentTransform);
+				infos.emplace_back((currentT - preT) * t, preTransform, currentTransform, f);
 
 				preT = currentT;
 				preTransform = currentTransform;
 			}
+
+			return infos;
 		}
 	};
 }

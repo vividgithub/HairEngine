@@ -14,6 +14,9 @@ set(HAIRENGINE_EXTERNAL_DIR "${PROJECT_SOURCE_DIR}/External")
 
 set(CMAKE_CXX_STANDARD 14)
 
+# Options
+option(HAIRENGINE_ENABLE_VPBRT "Enable VPbrt related class and functions" OFF)
+
 # All the common compile source files
 set(
 	HAIRENGINE_COMMON_SOURCE_FILES
@@ -31,12 +34,19 @@ set(
 # All the external libraries
 set(HAIRENGINE_LIBRARIES) 
 
+# Compile tags
+set(HAIRENGINE_COMPILE_OPTIONS)
+if (HAIRENGINE_ENABLE_VPBRT) 
+	set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_VPBRT")
+endif()
+
 # We use the main file to generate executable files for debugging in testing.
 # But it will not exisit in the git project
 if (EXISTS "${HAIRENGINE_SOURCE_DIR}/main/main.cpp")
 	add_executable(HairEngineExecutable ${HAIRENGINE_COMMON_SOURCE_FILES} ${HAIRENGINE_SOURCE_DIR}/main/main.cpp)
 	target_include_directories(HairEngineExecutable PUBLIC ${HAIRENGINE_INCLUDE_DIRS})
 	target_link_libraries(HairEngineExecutable PUBLIC ${HAIRENGINE_LIBRARIES})
+	target_compile_definitions(HairEngineExecutable PUBLIC ${HAIRENGINE_COMPILE_OPTIONS})
 else()
 endif()
 
@@ -46,4 +56,5 @@ if (HAIRENGINE_COMMON_SOURCE_FILES)
 	add_library(HairEngine ${HAIRENGINE_COMMON_SOURCE_FILES})
 	target_include_directories(HairEngine PUBLIC ${HAIRENGINE_INCLUDE_DIRS})
 	target_link_libraries(HairEngine PUBLIC ${HAIRENGINE_LIBRARIES})
+	target_compile_definitions(HairEngine PUBLIC ${HAIRENGINE_COMPILE_OPTIONS})
 endif()

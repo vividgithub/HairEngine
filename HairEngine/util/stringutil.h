@@ -24,5 +24,27 @@ namespace HairEngine {
 			return "/";
 #endif
 		}
+
+		/**
+		 * Replace part of the string with another string
+		 * 
+		 * @param s Input string
+		 * @param from The sub string that needs to be replaced
+		 * @param to The string that is replaced with
+		 * @return The replaced string
+		 */
+		inline std::string replace(std::string s, const std::string &from, const std::string &to) {
+
+			if (from.empty())
+				return s;
+
+			size_t start_pos = 0;
+			while ((start_pos = s.find(from, start_pos)) != std::string::npos) {
+				s.replace(start_pos, from.length(), to);
+				start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+			}
+
+			return s;
+		}
 	}
 }

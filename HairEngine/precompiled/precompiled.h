@@ -33,7 +33,14 @@
 #define HairEngine_DebugIf if(0)
 #else
 #define HAIRENGINE_DEBUG_ON
-#define HairEngine_DebugIf If(1)
+#define HairEngine_DebugIf if(1)
+#endif
+
+/*
+ * VPbrt Enable
+ */
+#ifdef HAIRENGINE_ENABLE_VPBRT
+#define HairEngine_VPbrtIf if(1)
 #endif
 
 /*

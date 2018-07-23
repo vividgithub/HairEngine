@@ -368,12 +368,12 @@ namespace HairEngine {
 
 			// Read particle positions
 			particleSize = FileUtility::binaryReadInt32(is);
-			for (size_t i = 0; i < particleSize; ++i)
+			for (int32_t i = 0; i < particleSize; ++i)
 				particlePositions.push_back(FileUtility::binaryReadVector3f(is));
 
 			// Read strand sizes
 			strandSize = FileUtility::binaryReadInt32(is);
-			for (size_t i = 0; i < strandSize; ++i)
+			for (int32_t i = 0; i < strandSize; ++i)
 				strandSizes.push_back(FileUtility::binaryReadInt32(is));
 
 			init(particlePositions.begin(), strandSizes.begin(), strandSizes.end());

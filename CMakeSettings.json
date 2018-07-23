@@ -8,7 +8,7 @@
             "inheritEnvironments": [ "msvc_x86" ],
             "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
             "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
-            "cmakeCommandArgs": "",
+            "cmakeCommandArgs": "-DHAIRENGINE_ENABLE_VPBRT=ON",
             "buildCommandArgs": "-v",
             "ctestCommandArgs": ""
         },
@@ -19,7 +19,7 @@
             "inheritEnvironments": [ "msvc_x86" ],
             "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
             "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
-            "cmakeCommandArgs": "",
+            "cmakeCommandArgs": "-DHAIRENGINE_ENABLE_VPBRT=ON",
             "buildCommandArgs": "-v",
             "ctestCommandArgs": ""
         },
@@ -30,7 +30,7 @@
             "inheritEnvironments": [ "msvc_x64_x64" ],
             "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
             "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
-            "cmakeCommandArgs": "",
+            "cmakeCommandArgs": "-DHAIRENGINE_ENABLE_VPBRT=ON",
             "buildCommandArgs": "-v",
             "ctestCommandArgs": ""
         },
@@ -41,7 +41,7 @@
             "inheritEnvironments": [ "msvc_x64_x64" ],
             "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
             "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
-            "cmakeCommandArgs": "",
+            "cmakeCommandArgs": "-DHAIRENGINE_ENABLE_VPBRT=ON",
             "buildCommandArgs": "-v",
             "ctestCommandArgs": ""
         }

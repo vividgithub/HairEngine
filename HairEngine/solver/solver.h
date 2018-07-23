@@ -43,6 +43,6 @@ namespace HairEngine {
 		 * @param hair The hair geometry to modify.
 		 * @param info The additional information (like the simulation timesteps, the affine transformation ...)
 		 */
-		virtual void solve(Hair & hair, const IntegrationInfo & info) const {}
+		virtual void solve(Hair & hair, const IntegrationInfo & info) {}
 	};
 }
