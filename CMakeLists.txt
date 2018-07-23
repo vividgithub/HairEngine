@@ -8,17 +8,24 @@ project ("HairEngine")
 # Set the root directory and the src directory
 set(HAIRENGINE_ROOT_DIR ${PROJECT_SOURCE_DIR})  # Root directory
 set(HAIRENGINE_SOURCE_DIR "${PROJECT_SOURCE_DIR}/HairEngine")  # Source code directory
-set(HAIRENGINE_EXTERNAL_DIR "${PROJECT_SOURCE_DIR}/External")  # Some of the dependencies
 
+# Some of the dependencies
+set(HAIRENGINE_EXTERNAL_DIR "${PROJECT_SOURCE_DIR}/External")  
+
+set(CMAKE_CXX_STANDARD 14)
 
 # All the common compile source files
-set(HAIRENGINE_COMMON_SOURCE_FILES) 
+set(
+	HAIRENGINE_COMMON_SOURCE_FILES
+	"${HAIRENGINE_SOURCE_DIR}/geo/hair.cpp"
+	) 
 
 # All the include directories
 set(
 	HAIRENGINE_INCLUDE_DIRS 
 	"${HAIRENGINE_ROOT_DIR}/.."
-	"${HAIRENGINE_EXTERNAL_DIR}"
+	"${HAIRENGINE_EXTERNAL_DIR}/Eigen3" # Eigen3
+	"${HAIRENGINE_EXTERNAL_DIR}/VPly/cpp" # VPly
 	) 
 
 # All the external libraries
