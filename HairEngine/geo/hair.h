@@ -1,5 +1,6 @@
 //
 // Created by vivi on 16/06/2018.
+//
 
 #pragma once
 
@@ -8,6 +9,7 @@
 #include <fstream>
 #include <ostream>
 #include <iostream>
+#include <memory>
 
 
 #include "../util/fileutil.h"
@@ -140,10 +142,21 @@ namespace HairEngine {
 		struct Strand {
 			typedef Strand *Ptr;
 
-			std::vector<Particle::Ptr> particlePtrs; ///< The particle pointers in the strand
-			std::vector<Segment::Ptr> segmentPtrs; ///< The segment pointers in the strand
+			struct {
+				Particle *beginPtr;
+				Particle *endPtr;
+				size_t nparticle;
+			} particleInfo;
+
+			struct
+			{
+				Segment *beginPtr;
+				Segment *endPtr;
+				size_t nsegment;
+			} segmentInfo;
 
 			size_t index; ///< The index in the global hair geometry
+			Hair *hairPtr; ///< Point to the hair geometry that it belongs to
 
 			/**
 			 * Constructor with a single index in the hair geometry, we initialize the strand with empty vectors
@@ -151,14 +164,26 @@ namespace HairEngine {
 			 *
 			 * @param index The index of strand
 			 */
-			Strand(size_t index): index(index) {}
+			Strand(size_t index, Hair* hairPtr, Particle *particleBeginPtr, Particle *particleEndPtr, Segment *segmentBeginPtr, Segment *segmentEndPtr): 
+				index(index), hairPtr(hairPtr),
+				particleInfo{ particleBeginPtr, particleEndPtr, 0 }, 
+				segmentInfo{ segmentBeginPtr, segmentEndPtr, 0 } {
+
+				particleInfo.nparticle = static_cast<size_t>(particleEndPtr - particleBeginPtr);
+				segmentInfo.nsegment = static_cast<size_t>(segmentEndPtr - segmentBeginPtr);
+			}
 		};
 
 	HairEngine_Protected:
 
-		std::vector<Particle> particles; ///< All particles in the hair geometry
-		std::vector<Segment> segments; ///< All segments in the hair geometry
-		std::vector<Strand> strands; ///< All strands in the hair geometry
+		Particle *particles = nullptr; ///< All particles in the hair geometry
+		size_t nparticle = 0; ///< Number of particles
+
+		Segment *segments = nullptr; ///< All segments in the hair geometry
+		size_t nsegment = 0; ///< Number of segments
+
+		Strand *strands = nullptr; ///< All strands in the hair geometry
+		size_t nstrand = 0; ///< Number of strands
 
 	HairEngine_Public:
 
@@ -173,6 +198,16 @@ namespace HairEngine {
 		 */
 		Hair(std::istream & is, const Eigen::Affine3f & affine = Eigen::Affine3f::Identity()) {
 			init(is, affine);
+		}
+
+		/**
+		 * Deconstructor
+		 */
+		virtual ~Hair()
+		{
+			HairEngine_SafeDeleteArray(particles);
+			HairEngine_SafeDeleteArray(segments);
+			HairEngine_SafeDeleteArray(strands);
 		}
 
 		/**
@@ -207,59 +242,80 @@ namespace HairEngine {
 		          const StrandSizeIterator & strandSizeEnd,
 		          const Eigen::Affine3f & affine = Eigen::Affine3f::Identity()) {
 
-			// Clear current contents
-			particles.clear();
-			segments.clear();
-			strands.clear();
+			auto particleAllocator = std::allocator<Particle>();
+			auto strandAllocator = std::allocator<Strand>();
+			auto segmentAllocator = std::allocator<Segment>();
 
-			// Count the size of strand and particle in order to alloc the space, otherwise it
-			size_t nParticle = 0, nStrand = 0;
+			// Count the size of strand and particle in order to alloc the space
+			nparticle = nstrand = 0;
 			for (auto strandSizeIt = strandSizeBegin; strandSizeIt != strandSizeEnd; ++strandSizeIt) {
-				nParticle += *strandSizeIt;
-				++nStrand;
+				nparticle += *strandSizeIt;
+				++nstrand;
 			}
+			nsegment = nparticle - nstrand;
 
-			// Reverse the size of the particles, segments, strands array, so that we could get the pointer since
-			// the vector will not be reallocted
-			particles.reserve(nParticle);
-			segments.reserve(nParticle - nStrand);
-			strands.reserve(nStrand);
+			// Allocate the space for particles, segments and strands
+			particles = particleAllocator.allocate(nparticle);
+			strands = strandAllocator.allocate(nstrand);
+			segments = segmentAllocator.allocate(nsegment);
 
-			// Initialize particles, segments, strands
-			size_t strandGloablIndex = 0, particleGlobalIndex = 0, segmentGlobalIndex = 0;
+
+			// Reset the nparticle, nstrand and nsegment, we will increase in the construction
+			nsegment = nparticle = nstrand = 0;
+
 			auto posIt = posBegin;
 
 			// Iterate over all the strands
 			for (auto strandSizeIt = strandSizeBegin; strandSizeIt != strandSizeEnd; ++strandSizeIt) {
 
-				// Create a strand
-				strands.emplace_back(strandGloablIndex);
-				auto & strand = strands.back();
+				const size_t nparticleInStrand = *strandSizeIt;
 
-				for (size_t i = 0; i < *strandSizeIt; ++i) {
+				// Create a strand
+				auto strandPtr = strands + nstrand;
+				strandAllocator.construct(
+					strandPtr,
+					nstrand, this,
+					particles + nparticle,
+					particles + nparticle + nparticleInStrand,
+					segments + nsegment,
+					segments + nsegment + nparticleInStrand - 1
+				);
+
+				for (size_t i = 0; i < nparticleInStrand; ++i) {
 					// Initialize the particle
 					Eigen::Vector3f pos = affine * (*posIt);
-					particles.emplace_back( pos, pos, Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), i, particleGlobalIndex, &strand);
 
-					// Add to the strand
-					strand.particlePtrs.push_back(&particles.back());
-
-					++particleGlobalIndex;
+					// Create a particle
+					auto particlePtr = particles + nparticle;
+					particleAllocator.construct(
+						particlePtr, 
+						pos,
+						pos,
+						Eigen::Vector3f::Zero(),  
+						Eigen::Vector3f::Zero(),
+						i, 
+						nparticle, strandPtr
+					);
 
 					// Check whether we could create a segment
 					if (i > 0) {
 						// Initialize the segment
-						segments.emplace_back( &particles[particles.size() - 2], &particles[particles.size() - 1], i - 1, segmentGlobalIndex);
+						auto segmentPtr = segments + nsegment;
+						segmentAllocator.construct(
+							segmentPtr,
+							// Currently, nparticle is not upadted so (particles + nparticle) points to the last allocated particle 
+							particlePtr + nparticle - 1, particlePtr + nparticle, 
+							i - 1, nsegment
+						);
 
-						// Add to the strand
-						strand.segmentPtrs.push_back(&segments.back());
-						++segmentGlobalIndex;
+						++nsegment;
 					}
 
 					++posIt;
+					++nparticle;
 				}
 
-				++strandGloablIndex;
+				++nstrand;
 			}
 		};
 
@@ -297,17 +353,13 @@ namespace HairEngine {
 		void writeToFile(const std::string & filePath) {
 			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
 
-			FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(particles.size()));
-			for (const auto & p : particles)
-				FileUtility::binaryWriteVector3f(fout, p.pos);
-			FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(strands.size()));
-			for (const auto & st : strands)
-				FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(st.particlePtrs.size()));
+			FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(nparticle));
+			for (size_t i = 0; i < nparticle; ++i)
+				FileUtility::binaryWriteVector3f(fout, particles[i].pos);
+
+			FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(nstrand));
+			for (size_t i = 0; i < nstrand; ++i)
+				FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(strands[i].particleInfo.nparticle));
 		}
 	};
-
-	std::ostream & operator<<(std::ostream & os, const Hair::Segment & segment);
-	std::ostream & operator<<(std::ostream & os, const Hair::Particle & particle);
-	std::ostream & operator<<(std::ostream & os, const Hair::Strand & strand);
 }
-

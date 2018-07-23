@@ -11,7 +11,7 @@
  * Safe Delete
  */
 #define HairEngine_SafeDelete(item_) if(item_ != nullptr) delete item_
-#define HairEngine_SafeDeleteArray(item_) if(item_ != nullptr) delete [] item_
+#define HairEngine_SafeDeleteArray(item_) delete [] item_
 
 /*
  * Some useful definitions for debugging so that we could access all the private data in the class

@@ -7,7 +7,7 @@
 #include <Eigen/Eigen>
 #include <algorithm>
 #include <cmath>
-#include "core/precompiled/precompiled.h"
+#include "../precompiled/precompiled.h"
 
 namespace HairEngine {
 	namespace MathUtility {
@@ -66,7 +66,6 @@ namespace HairEngine {
 		 * By entering a vector, returns a orthogonal vecotor. This method works for any non-zero vector.
 		 */
 		inline Eigen::Vector3f makeOrthogonalVector(const Eigen::Vector3f & fromVector, bool shouldNormalized) {
-			Assert(fromVector != Eigen::Vector3f::Zero());
 
 			Eigen::Vector3f ret;
 			if (std::abs(fromVector(0)) > std::abs(fromVector(1)))
