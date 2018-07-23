@@ -1,0 +1,3 @@
+[submodule "External/VPly"]
+	path = External/VPly
+	url = https://github.com/vividgithub/VPly
