@@ -20,6 +20,7 @@ namespace HairEngine {
 
 	class Hair;
 	class Integrator;
+	class SelleMassSpringSolverBase;
 
 	std::ostream & operator<<(std::ostream & os, const Hair & hair);
 
@@ -29,6 +30,7 @@ namespace HairEngine {
 	class Hair {
 
 		friend class Integrator;
+		friend class SelleMassSpringSolverBase;
 
 	HairEngine_Public:
 		struct Strand;
@@ -122,6 +124,15 @@ namespace HairEngine {
 			 */
 			const Strand *strandPtr() const {
 				return p1->strandPtr;
+			}
+
+			/**
+			 * Current direction d = p2->pos - p1->pos
+			 * 
+			 * @return The direction d
+			 */
+			Eigen::Vector3f d() const {
+				return p2->pos - p1->pos;
 			}
 
 			/**

@@ -78,6 +78,8 @@ namespace HairEngine {
 		 */
 		template <typename FloatCastableIterator>
 		std::vector<IntegrationInfo> lerp(FloatCastableIterator begin, FloatCastableIterator end) const {
+			HairEngine_DebugAssert(end != begin);
+
 			auto preT = *begin;
 			auto preTransform = MathUtility::lerp(preT, ptr, tr);
 

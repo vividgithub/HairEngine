@@ -27,8 +27,11 @@ namespace HairEngine {
 		 * for the solver.
 		 *
 		 * @param hair The hair geometry. You could get the particle size or strand size from the hair geometry.
+		 * @param currentTransform We will perform an affine transform before the setup function called in the Integrator.
+		 * So that in the setup of the Solver, the restPos = currentTransform * pos for particles. It's useful to setup 
+		 * some new particles' restPos using currentTransform.
 		 */
-		virtual void setup(const Hair & hair) {}
+		virtual void setup(const Hair & hair, const Eigen::Affine3f & currentTransform) {}
 
 		/**
 		 * Tear down function. Called when the simulation is done. You should deallocate the space created in the
@@ -44,5 +47,7 @@ namespace HairEngine {
 		 * @param info The additional information (like the simulation timesteps, the affine transformation ...)
 		 */
 		virtual void solve(Hair & hair, const IntegrationInfo & info) {}
+
+		virtual ~Solver() = default;
 	};
 }

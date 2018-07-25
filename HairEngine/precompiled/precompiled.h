@@ -6,12 +6,16 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
+#include <type_traits>
 
 /*
  * Safe Delete
  */
 #define HairEngine_SafeDelete(item_) if(item_ != nullptr) delete item_
 #define HairEngine_SafeDeleteArray(item_) delete [] item_
+#define HairEngine_AllocatorAllocate(item_, n_) item_ = std::allocator<std::remove_pointer<decltype(item_)>::type>().allocate(n_)
+#define HairEngine_AllocatorDeallocate(item_, n_) std::allocator<std::remove_pointer<decltype(item_)>::type>().deallocate(item_, n_)
 
 /*
  * Some useful definitions for debugging so that we could access all the private data in the class
