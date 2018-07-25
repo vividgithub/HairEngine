@@ -2,7 +2,7 @@
 
 #include "../geo/hair.h"
 #include "../solver/integrator.h"
-#include "../solver/hair_particle_visualizer.h"
+#include "../solver/hair_visualizer.h"
 
 int main() {
 	using namespace HairEngine;
@@ -13,7 +13,7 @@ int main() {
 
 	Integrator integrator(hair, Eigen::Affine3f::Identity());
 
-	integrator.addSolver<HairParticleVisualizer>("C:\\Users\\VividWinPC1\\Desktop", "Test-${F}.vply");
+	integrator.addSolver<HairVisualizer>("C:\\Users\\VividWinPC1\\Desktop", "Test-${F}.vply");
 
 	cout << "Simulate" << endl;
 
