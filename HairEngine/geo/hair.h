@@ -10,6 +10,7 @@
 #include <ostream>
 #include <iostream>
 #include <memory>
+#include <algorithm>
 
 
 #include "../util/fileutil.h"
@@ -50,7 +51,7 @@ namespace HairEngine {
 			size_t localIndex; ///< Local index for the particle in the strand
 			size_t globalIndex; ///< Global index for the particle in the whole hair geometry
 
-			Strand *strandPtr; ///< The associated strand pointer
+			size_t strandIndex; ///< The associated strand's index in the hair geometry
 
 			/**
 			 * Predict the particles' position after time t
@@ -63,20 +64,6 @@ namespace HairEngine {
 			}
 
 			/**
-			 * Check whether it is the first particle in the strand
-			 *
-			 * @return True if it is the first particle and otherwise false
-			 */
-			bool isStrandRoot() const;
-
-			/**
-			 * Check whether it is the last particle in the strand
-			 *
-			 * @return True if it is the last particle in the strand and otherwise false
-			 */
-			bool isStrandTip() const;
-
-			/**
 			 * Initialization of the particle
 			 *
 			 * @param restPos The rest position of the particle position
@@ -85,12 +72,12 @@ namespace HairEngine {
 			 * @param impulse Current impluse of the particle
 			 * @param localIndex The local index in the strand
 			 * @param globalIndex The global index in the strand
-			 * @param strandPtr The strand pointer of which the particle is in
+			 * @param strandIndex The strand index of which the particle is in
 			 */
 			Particle(const Eigen::Vector3f &restPos, const Eigen::Vector3f &pos, const Eigen::Vector3f &vel,
-			         const Eigen::Vector3f &impulse, size_t localIndex, size_t globalIndex, Strand *strandPtr)
+			         const Eigen::Vector3f &impulse, size_t localIndex, size_t globalIndex, size_t strandIndex)
 					: restPos(restPos), pos(pos), vel(vel), impulse(impulse), localIndex(localIndex),
-					  globalIndex(globalIndex), strandPtr(strandPtr) {}
+					  globalIndex(globalIndex), strandIndex(strandIndex) {}
 		};
 
 
@@ -107,24 +94,6 @@ namespace HairEngine {
 
 			size_t localIndex; ///< Local index for the segment in the strand
 			size_t globalIndex; ///< Global index for the segment in the whole hair geometry
-
-			/**
-			 * Get the strand pointer which the segment belongs to
-			 *
-			 * @return The strand pointer
-			 */
-			Strand *strandPtr() {
-				return p1->strandPtr;
-			}
-
-			/**
-			 * Get the strand pointer(const version) which the segment belongs to
-			 *
-			 * @return The strand pointer
-			 */
-			const Strand *strandPtr() const {
-				return p1->strandPtr;
-			}
 
 			/**
 			 * Current direction d = p2->pos - p1->pos
@@ -216,13 +185,40 @@ namespace HairEngine {
 		}
 
 		/**
+		 * Copy constructor
+		 */
+		Hair(const Hair & rhs) {
+			nparticle = rhs.nparticle;
+			nstrand = rhs.nstrand;
+			nsegment = rhs.nsegment;
+
+			HairEngine_AllocatorAllocate(particles, nparticle);
+			HairEngine_AllocatorAllocate(strands, nstrand);
+
+			std::copy(rhs.particles, rhs.particleEnd(), particles);
+			std::copy(rhs.strands, rhs.strandEnd(), strands);
+		}
+
+		/**
+		 * Move constructor
+		 */
+		Hair(Hair && rhs) {
+			std::swap(nparticle, rhs.nparticle);
+			std::swap(nsegment, rhs.nsegment);
+			std::swap(nstrand, rhs.nstrand);
+			std::swap(particles, rhs.particles);
+			std::swap(segments, rhs.segments);
+			std::swap(strands, rhs.strands);
+		}
+
+		/**
 		 * Deconstructor
 		 */
 		virtual ~Hair()
 		{
-			HairEngine_SafeDeleteArray(particles);
-			HairEngine_SafeDeleteArray(segments);
-			HairEngine_SafeDeleteArray(strands);
+			HairEngine_AllocatorDeallocate(particles, nparticle);
+			HairEngine_AllocatorDeallocate(segments, nsegment);
+			HairEngine_AllocatorDeallocate(strands, nstrand);
 		}
 
 		/**
@@ -239,32 +235,72 @@ namespace HairEngine {
 		/**
 		 * Get the end pointer of the particles
 		 */
-		Particle *particleEnd() { return particles + nparticle; }
+		Particle *particleEnd() const { return particles + nparticle; }
 
 		/**
 		* Get the end pointer of the particles
 		*/
-		const Particle *particleEnd() const { return particles + nparticle; }
+		//const Particle *particleEnd() const { return particles + nparticle; }
 
 		/**
 		 * Get the end pointer of the segments
 		 */
-		Segment *segmentEnd() { return segments + nsegment; }
+		Segment *segmentEnd() const { return segments + nsegment; }
 
 		/**
 		 * Get the end pointer of the segments
 		 */
-		const Segment *segmentEnd() const { return segments + nsegment; }
+		//const Segment *segmentEnd() const { return segments + nsegment; }
 
 		/**
 		 * Get the end pointer of the strands
 		 */
-		Strand *strandEnd() { return strands + nstrand; }
+		Strand *strandEnd() const { return strands + nstrand; }
 
 		/**
 		 * Get the end pointer of the strands
 		 */
-		const Strand *strandEnd() const { return strands + nstrand;  }
+		//const Strand *strandEnd() const { return strands + nstrand;  }
+
+		/**
+		 * Resampling some strands specified by the IndexIterator. IndexIterator should 
+		 * yield the index for the strand that want to fetch from the orignial hair geometry.
+		 * 
+		 * @param begin The begin index iterator
+		 * @param end The end index iterator
+		 * @return A resampled hair geometry
+		 */
+		template <class IndexIterator>
+		Hair resample(const IndexIterator & begin, const IndexIterator & end) const {
+			std::vector<Eigen::Vector3f> positions;
+			std::vector<size_t> strandSizes;
+
+			for (auto it = begin; it != end; ++it) {
+				const Strand & strand = strands[*it];
+
+				strandSizes.push_back(strand.particleInfo.nparticle);
+				for (auto p = strand.particleInfo.beginPtr; p != strand.particleInfo.endPtr; ++p) {
+					positions.push_back(p->pos);
+				}
+			}
+
+			return Hair(positions.begin(), strandSizes.begin(), strandSizes.end());
+		}
+
+		/**
+		 * Resampling the hair. The resampled hair should have appoximate "nstrand / sampleRate" strands.
+		 * 
+		 * @param sampleRate The rate for sampling
+		 * @return Resampled hair
+		 */
+		Hair resample(const size_t sampleRate) {
+			std::vector<size_t> sampledStrandIndices;
+			for (size_t i = 0; i < nstrand; i += sampleRate) {
+				sampledStrandIndices.push_back(i);
+			}
+
+			return resample(sampledStrandIndices.begin(), sampledStrandIndices.end());
+		}
 
 	HairEngine_Protected:
 
@@ -339,7 +375,7 @@ namespace HairEngine {
 						Eigen::Vector3f::Zero(),  
 						Eigen::Vector3f::Zero(),
 						i, 
-						nparticle, strandPtr
+						nparticle, strandPtr->index
 					);
 
 					// Check whether we could create a segment
@@ -349,7 +385,7 @@ namespace HairEngine {
 						segmentAllocator.construct(
 							segmentPtr,
 							// Currently, nparticle is not upadted so (particles + nparticle) points to the last allocated particle 
-							particlePtr + nparticle - 1, particlePtr + nparticle, 
+							particlePtr - 1, particlePtr, 
 							i - 1, nsegment
 						);
 
@@ -363,6 +399,17 @@ namespace HairEngine {
 				++nstrand;
 			}
 		};
+
+		/**
+		 * A wrapper for init function
+		 */
+		template <class RestPositionIterator, class StrandSizeIterator>
+		Hair(const RestPositionIterator & posBegin,
+			const StrandSizeIterator & strandSizeBegin,
+			const StrandSizeIterator & strandSizeEnd,
+			const Eigen::Affine3f & affine = Eigen::Affine3f::Identity()) {
+			init<RestPositionIterator, StrandSizeIterator>(posBegin, strandSizeBegin, strandSizeEnd);
+		}
 
 		/**
 		 * Helper function for the constructor.
@@ -397,14 +444,22 @@ namespace HairEngine {
 		 */
 		void writeToFile(const std::string & filePath) const {
 			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
+			stream(fout);
+		}
 
-			FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(nparticle));
+		/**
+		 * Write hair information into specific stream
+		 * 
+		 * @param os The ostream to write to
+		 */
+		void stream(std::ostream & os) const {
+			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nparticle));
 			for (size_t i = 0; i < nparticle; ++i)
-				FileUtility::binaryWriteVector3f(fout, particles[i].pos);
+				FileUtility::binaryWriteVector3f(os, particles[i].pos);
 
-			FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(nstrand));
+			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nstrand));
 			for (size_t i = 0; i < nstrand; ++i)
-				FileUtility::binaryWriteInt32(fout, static_cast<int32_t>(strands[i].particleInfo.nparticle));
+				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strands[i].particleInfo.nparticle));
 		}
 	};
 }

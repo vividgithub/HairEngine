@@ -52,7 +52,7 @@ namespace HairEngine {
 			auto solverPtr = std::make_shared<SolverSubClass>(args...);
 
 			// Call the setup function of the solverPtr
-			solverPtr->setup(*hairPtr);
+			solverPtr->setup(*hairPtr, previousTransform);
 
 			solverPtrs.push_back(solverPtr);
 			return solverPtr;

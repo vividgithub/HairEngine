@@ -395,5 +395,51 @@ namespace HairEngine {
 			outVn = v.dot(dir) * dir;
 			outVt = v - outVn;
 		}
+
+		/**
+		 * Mass spring force computation.
+		 * 
+		 * @param pos1 The first position of mass spring attached point
+		 * @param pos2 The second position of mass spring attached point
+		 * @param k The stiffness
+		 * @param l0 The rest length
+		 * @param directionVec The directional vector, nullptr indicates we use the normal spring computation
+		 * @param outD The optional directional matrix buffer, it is assigned as non-nullptr, a directional matrix will be written to it
+		 * 
+		 * @return The sprign force
+		 */
+		inline Eigen::Vector3f massSpringForce(const Eigen::Vector3f & pos1, const Eigen::Vector3f & pos2, 
+			float k, float l0, const Eigen::Vector3f *directionVec = nullptr,  Eigen::Matrix3f *outD = nullptr) {
+
+			Eigen::Vector3f d = pos2 - pos1;
+			float l = d.norm();
+
+			// If pos2 == pos1, return 0 since we cannot determine the direction
+			if (l == 0) {
+				if (outD)
+					*outD = Eigen::Matrix3f::Identity();
+				return Eigen::Vector3f::Zero();
+			}
+			
+			d.normalize();
+
+			// Compute the directional indicator
+			float s = 1.0f;
+			if (directionVec != nullptr && d.dot(*directionVec) < 0.0f)
+				s = -1.0f;
+
+			// Compute the direction matrix
+			if (outD) {
+				auto & _ = *outD;
+				_(0, 0) = d(0) * d(0);
+				_(1, 1) = d(1) * d(1);
+				_(2, 2) = d(2) * d(2);
+				_(0, 1) = _(1, 0) = d(0) * d(1);
+				_(0, 2) = _(2, 0) = d(0) * d(2);
+				_(1, 2) = _(2, 1) = d(1) * d(2);
+			}
+			
+			return k * (s * l - l0) * d;
+		}
 	}
 }
