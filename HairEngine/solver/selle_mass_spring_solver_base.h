@@ -10,6 +10,9 @@
 #include "../util/mathutil.h"
 
 namespace HairEngine {
+
+	class SelleMassSpringVisualizer;
+
 	/**
 	 * The base class of the paper Andrew Selle's Mass Spring Model for Hair Simulation.
 	 * In this paper, the hair is represented with a group of connected mass spring with some virual 
@@ -17,6 +20,9 @@ namespace HairEngine {
 	 * in the derived class.
 	 */
 	class SelleMassSpringSolverBase: public Solver, public HairVisualizerVirtualParticleVisualizationInterface {
+
+		friend class SelleMassSpringVisualizer;
+
 	HairEngine_Public:
 
 		static constexpr const size_t PARTICLE_TYPE_INDICATOR_BIT = std::numeric_limits<size_t>::max() - (std::numeric_limits<size_t>::max() >> 1);
@@ -29,9 +35,10 @@ namespace HairEngine {
 			size_t i1, i2;
 			float k;
 			float l0;
+			int32_t typeID; // 0 for Stretch, 1 for Bending, 2 for Torsion
 
-			Spring(size_t i1, size_t i2, float k, float l0):
-				i1(i1), i2(i2), k(k) , l0(l0) {}
+			Spring(size_t i1, size_t i2, float k, float l0, int32_t typeID):
+				i1(i1), i2(i2), k(k) , l0(l0), typeID(typeID) {}
 		};
 
 		/**
@@ -183,13 +190,12 @@ namespace HairEngine {
 					Hair::Particle::Ptr par3 = (i + 3 < nparticle) ? p(i + 3) : nullptr;
 
 					// Create stretch, bending and torsion spring
-					nspring = 0;
 					if (par1 && par1->strandIndex == par->strandIndex)
-						std::allocator<Spring>().construct(springs + (nspring++), i, i + 1, kStretch, (par1->restPos - par->restPos).norm());
+						std::allocator<Spring>().construct(springs + (nspring++), i, i + 1, kStretch, (par1->restPos - par->restPos).norm(), 0);
 					if (par2 && par2->strandIndex == par->strandIndex)
-						std::allocator<Spring>().construct(springs + (nspring++), i, i + 2, kBending, (par2->restPos - par->restPos).norm());
+						std::allocator<Spring>().construct(springs + (nspring++), i, i + 2, kBending, (par2->restPos - par->restPos).norm(), 1);
 					if (par3 && par3->strandIndex == par->strandIndex)
-						std::allocator<Spring>().construct(springs + (nspring++), i, i + 3, kStretch, (par3->restPos - par->restPos).norm());
+						std::allocator<Spring>().construct(springs + (nspring++), i, i + 3, kTorsion, (par3->restPos - par->restPos).norm(), 2);
 				}
 
 				nspringInStrand[si] = nspring - nspringInStrand[si];
@@ -199,7 +205,7 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			return; //FIXME: Test
+			return;
 
 			// Split the time based on the maxIntegrationTime
 			float t = maxIntegrationTime / info.t;
@@ -382,6 +388,19 @@ namespace HairEngine {
 		 * @param info Sliced intergration info
 		 */
 		virtual void _solve(const IntegrationInfo & info) {
+
+			mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
+				pos1[i] = par->pos;
+				vel1[i] = par->vel;
+			});
+
+			integrate(pos1, vel1, vel2, info.t);
+
+			mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
+				par->vel += vel2[i];
+			});
+
+			return;
 
 			float t_2 = info.t / 2.0f;
 

@@ -1,0 +1,41 @@
+#pragma once
+
+#include "VPly/vply.h"
+#include "selle_mass_spring_solver_base.h"
+
+namespace HairEngine {
+	class SelleMassSpringVisualizer: public Visualizer {
+	HairEngine_Public:
+
+		/**
+		 * Constructor
+		 * 
+		 * @param directory Describe in Visualizer
+		 * @param filenameTemplate Describe in Visualizer
+		 * @param selleMassSpringSolver The observing solver
+		 */
+		SelleMassSpringVisualizer(const std::string & directory, const std::string & filenameTemplate, SelleMassSpringSolverBase * selleMassSpringSolver):
+			Visualizer(directory, filenameTemplate), selleMassSpringSolver(selleMassSpringSolver) {}
+
+		void visualize(std::ostream& os, Hair& hair, const IntegrationInfo& info) override {
+			// Show the springs
+			const auto _ = selleMassSpringSolver;
+			for (auto sp = _->springs; sp != _->springs + _->nspring; ++sp) {
+				Eigen::Vector3f pos1 = _->p(sp->i1)->pos;
+				Eigen::Vector3f pos2 = _->p(sp->i2)->pos;
+				float l = (pos2 - pos1).norm();
+
+				VPly::writeLine(
+					os, EigenUtility::toVPlyVector3f(pos1), EigenUtility::toVPlyVector3f(pos2),
+					VPly::VPlyFloatAttr("k", sp->k),
+					VPly::VPlyFloatAttr("l0", sp->l0),
+					VPly::VPlyFloatAttr("l", l),
+					VPly::VPlyIntAttr("type", static_cast<int32_t>(sp->typeID))
+				);
+			}
+		}
+
+	HairEngine_Protected:
+		SelleMassSpringSolverBase *selleMassSpringSolver; ///< The observing solver
+	};
+}

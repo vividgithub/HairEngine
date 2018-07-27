@@ -4,6 +4,7 @@
 #include "../solver/integrator.h"
 #include "../solver/hair_visualizer.h"
 #include "../solver/selle_mass_spring_semi_implicit_euler_solver.h"
+#include "../solver/selle_mass_spring_visualizer.h"
 
 int main() {
 	using namespace HairEngine;
@@ -15,7 +16,8 @@ int main() {
 	Integrator integrator(hair, Eigen::Affine3f::Identity());
 
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringSemiImplcitEulerSolver>();
-	integrator.addSolver<HairVisualizer>(R"(C:\Users\VividWinPC1\Desktop)", "TestHair-${F}.vply", massSpringSolver.get());
+	integrator.addSolver<HairVisualizer>(R"(C:\Users\VividWinPC1\Desktop)", "TestHair-${F}-Hair.vply", massSpringSolver.get());
+	integrator.addSolver<SelleMassSpringVisualizer>(R"(C:\Users\VividWinPC1\Desktop)", "TestHair-${F}-Selle.vply", massSpringSolver.get());
 
 	cout << "Simulate" << endl;
 
