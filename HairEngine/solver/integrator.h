@@ -53,6 +53,7 @@ namespace HairEngine {
 
 			// Call the setup function of the solverPtr
 			solverPtr->setup(*hairPtr, previousTransform);
+			solverPtr->hair = hairPtr.get();
 
 			solverPtrs.push_back(solverPtr);
 			return solverPtr;

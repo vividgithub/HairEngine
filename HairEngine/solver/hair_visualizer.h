@@ -36,9 +36,10 @@ namespace HairEngine {
 		 * @param directory The directory that writes to
 		 * @param filenameTemplate The filenameTemplate described in Visualizer class
 		 * @param vpi The additional virtual particle visualization interface
+		 * @param timestep The timestep for visualizer
 		 */
-		HairVisualizer(const std::string & directory, const std::string & filenameTemplate, const VPI * vpi = nullptr):
-			Visualizer(directory, filenameTemplate), vpi(vpi) {
+		HairVisualizer(const std::string & directory, const std::string & filenameTemplate, float timestep, const VPI * vpi = nullptr):
+			Visualizer(directory, filenameTemplate, timestep), vpi(vpi) {
 			if (StringUtility::endswith(filenameTemplate, ".hair"))
 				writeVPly = false;
 			else if (StringUtility::endswith(filenameTemplate, ".vply"))
@@ -71,7 +72,7 @@ namespace HairEngine {
 		void visualizeVPly(std::ostream& os, Hair& hair, const IntegrationInfo& info) {
 			for (auto sPtr = hair.strands; sPtr != hair.strandEnd(); ++sPtr) {
 				// Create a VPlyAttributedLineStrip
-				VPly::AttributedLineStrip lineStrip(4, VPly::VPlyIntAttr("np", sPtr->particleInfo.nparticle));
+				VPly::AttributedLineStrip lineStrip(4, VPly::VPlyIntAttr("np", static_cast<int32_t>(sPtr->particleInfo.nparticle)));
 				for (auto pPtr = sPtr->particleInfo.beginPtr; pPtr != sPtr->particleInfo.endPtr; ++pPtr) {
 					lineStrip.addPoint(
 						EigenUtility::toVPlyVector3f(pPtr->pos),

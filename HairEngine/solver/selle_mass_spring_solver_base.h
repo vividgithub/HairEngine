@@ -60,12 +60,11 @@ namespace HairEngine {
 			float bendingStiffness = 8000.0f, 
 			float torsionStiffness = 8000.0f,
 			float damping = 15.0f,
-			float maxIntegrationTime = 0.01f,
 			bool enableStrainLimiting = true,
 			float colinearMaxDegree = 4.0f,
 			float mass = 25.0f
 		): stretchStiffness(stretchStiffness), bendingStiffness(bendingStiffness), 
-			torsionStiffness(torsionStiffness), damping(damping), maxIntegrationTime(maxIntegrationTime),
+			torsionStiffness(torsionStiffness), damping(damping),
 			enableStrainLimiting(enableStrainLimiting), colinearMaxRad(colinearMaxDegree * 3.141592f / 180.0f), 
 			mass(mass) {}
 
@@ -134,6 +133,9 @@ namespace HairEngine {
 
 						++nvirtualLocal;
 						++nvirtual;
+
+						// Reassign the dirVec to allow rotation
+						dirVec = normalVec;
 					}
 
 					// Next iteration
@@ -179,6 +181,7 @@ namespace HairEngine {
 			HairEngine_AllocatorAllocate(nspringInStrand, nstrand);
 			HairEngine_AllocatorAllocate(springStartIndexForStrand, nstrand);
 
+			nspring = 0;
 			for (size_t si = 0; si < nstrand; ++si) {
 
 				nspringInStrand[si] = nspring;
@@ -205,25 +208,47 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			return;
+			mapParticle(false, [this, &info](Hair::Particle::Ptr par, size_t i) {
+				pos1[i] = par->pos;
+				vel1[i] = par->vel;
+			});
 
-			// Split the time based on the maxIntegrationTime
-			float t = maxIntegrationTime / info.t;
+			integrate(pos1, vel1, vel2, info);
 
-			// Make the slices
-			std::vector<float> ts;
-			ts.push_back(0.0f);
-			while (ts.back() + t <= 0.995f) {
-				// To avoid float point error, we choose 0.995f
-				ts.push_back(ts.back() + t);
-			}
-			ts.push_back(1.0f);
+			mapParticle(false, [this, &info](Hair::Particle::Ptr par, size_t i) {
+				par->vel = vel2[i];
 
-			// Create the integration info
-			auto slicedInfos = info.lerp(ts.begin(), ts.end());
+				// Only commit the position of the virtual particles
+				if (isVirtualParticle(i))
+					par->pos += info.t * par->vel;
+			});
 
-			for (const auto & slicedInfo : slicedInfos)
-				_solve(slicedInfo);
+			//float t_2 = info.t / 2.0f;
+
+			//// Store the position and velocity into buffer
+			//mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
+			//	pos1[i] = par->pos;
+			//	vel1[i] = par->vel;
+			//});
+
+			//// First integration
+			//integrate(pos1, vel1, vel2, t_2);
+
+			//// Strain limiting
+			//// TODO: Strain limiting
+
+			//// Compute middle properties
+			//mapParticle(false, [this, t_2](Hair::Particle::Ptr par, size_t i) {
+			//	pos2[i] = pos1[i] + vel2[i] * t_2; // pos2 is stored the middle position
+			//});
+
+			//// Second integration
+			//integrate(pos2, vel2, vel3, t_2);
+
+			//// Update the final velocity
+			//mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
+			//	par->vel += 2.0f * (vel3[i] - vel2[i]);
+			//});
 		}
 
 		void tearDown() override {
@@ -258,7 +283,6 @@ namespace HairEngine {
 		float bendingStiffness;
 		float torsionStiffness;
 		float damping;
-		float maxIntegrationTime;
 		bool enableStrainLimiting;
 		float colinearMaxRad;
 		float mass;
@@ -309,7 +333,7 @@ namespace HairEngine {
 		 * @return True if it is a virual particle
 		 */
 		inline bool isNormalParticle(size_t index) const {
-			return (index & PARTICLE_TYPE_INDICATOR_BIT) == 0;
+			return (particleIndices[index] & PARTICLE_TYPE_INDICATOR_BIT) == 0;
 		}
 
 		/**
@@ -323,11 +347,12 @@ namespace HairEngine {
 		/**
 		 * Get the particle pointer based on the index
 		 * 
-		 * @param index The index of the particle in the particleIndices
+		 * @param index The index of the particle in the squence of normal particles
 		 * @return The particle pointer
 		 */
 		inline Hair::Particle::Ptr p(size_t index) const {
-			return isNormalParticle(index) ? (normalParticles + index) : (virtualParticles + (index - PARTICLE_TYPE_INDICATOR_BIT));
+			index = particleIndices[index];
+			return ((index & PARTICLE_TYPE_INDICATOR_BIT) == 0) ? (normalParticles + index) : (virtualParticles + (index - PARTICLE_TYPE_INDICATOR_BIT));
 		}
 
 		/**
@@ -346,7 +371,7 @@ namespace HairEngine {
 			else {
 				// Sequential
 				for (size_t i = 0; i < nparticle; ++i)
-					mapper(p(particleIndices[i]), i);
+					mapper(p(i), i);
 			}
 		}
 
@@ -377,59 +402,8 @@ namespace HairEngine {
 		 * @param pos The position buffer (Read)
 		 * @param vel The velocity buffer (Read)
 		 * @param outVel The output velocity buffer, it should be different from the vel (Write)
-		 * @param t The integration time
+		 * @param info The integration info
 		 */
-		virtual void integrate(Eigen::Vector3f *pos, Eigen::Vector3f *vel, Eigen::Vector3f *outVel, float t) = 0;
-
-		/**
-		 * Solve with a small time slice integration. Use a variant of 
-		 * Runge Kutta integration.
-		 * 
-		 * @param info Sliced intergration info
-		 */
-		virtual void _solve(const IntegrationInfo & info) {
-
-			mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
-				pos1[i] = par->pos;
-				vel1[i] = par->vel;
-			});
-
-			integrate(pos1, vel1, vel2, info.t);
-
-			mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
-				par->vel += vel2[i];
-			});
-
-			return;
-
-			float t_2 = info.t / 2.0f;
-
-			// Store the position and velocity into buffer
-			mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
-				pos1[i] = par->pos;
-				vel1[i] = par->vel;
-			});
-
-			// First integration
-			integrate(pos1, vel1, vel2, t_2);
-
-			// Strain limiting
-			// TODO: Strain limiting
-
-			// Compute middle properties
-			mapParticle(false, [this, t_2](Hair::Particle::Ptr par, size_t i) {
-				pos2[i] = pos1[i] + vel2[i] * t_2; // pos2 is stored the middle position
-			});
-
-			// Second integration
-			integrate(pos2, vel2, vel3, t_2);
-
-			// Update the final velocity
-			mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
-				par->vel += 2.0f * (vel3[i] - vel2[i]);
-			});
-		}
-
-		
+		virtual void integrate(Eigen::Vector3f *pos, Eigen::Vector3f *vel, Eigen::Vector3f *outVel, const IntegrationInfo & info) = 0;
 	};
 }

@@ -11,30 +11,32 @@ namespace HairEngine {
 
 	HairEngine_Public:
 
+		using SelleMassSpringSolverBase::SelleMassSpringSolverBase; // Inherit constructor
+
 		void setup(const Hair& hair, const Eigen::Affine3f& currentTransform) override {
 			SelleMassSpringSolverBase::setup(hair, currentTransform);
 			im = new Eigen::Vector3f[nparticle];
 		}
 
 		void tearDown() override {
-			SelleMassSpringSolverBase::tearDown();
 			HairEngine_SafeDeleteArray(im);
+			SelleMassSpringSolverBase::tearDown();
 		}
 
 	HairEngine_Protected:
-		void integrate(Eigen::Vector3f* pos, Eigen::Vector3f* vel, Eigen::Vector3f* outVel, float t) override {
+		void integrate(Eigen::Vector3f* pos, Eigen::Vector3f* vel, Eigen::Vector3f* outVel, const IntegrationInfo &info) override {
 
-			float f1 = t / pmass;
+			float f1 = info.t / pmass;
 
 			// Initialize the impluse
-			mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
-				im[i] = par->impulse;
+			mapParticle(false, [this, vel](Hair::Particle::Ptr par, size_t i) {
+				im[i] = par->impulse - damping * vel[i];
 			});
 
-			mapStrand(false, [this, f1, pos, vel, outVel] (size_t si) {
+			mapStrand(false, [this, f1, pos, vel, outVel, &info] (size_t si) {
 				// Compute the spring force
 				for (auto spIt = springs + springStartIndexForStrand[si]; 
-					spIt != springs + springStartIndexForStrand[si] + nparticleInStrand[si]; 
+					spIt != springs + springStartIndexForStrand[si] + nspringInStrand[si]; 
 					++spIt) {
 					Eigen::Vector3f springForce = MathUtility::massSpringForce(pos[spIt->i1], pos[spIt->i2], spIt->k, spIt->l0);
 
@@ -43,9 +45,16 @@ namespace HairEngine {
 				}
 
 				// Compute the new velocity
-				for (size_t i = particleStartIndexForStrand[si]; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
+				for (size_t i = particleStartIndexForStrand[si] + 1; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
 					outVel[i] = vel[i] + im[i] * f1;
 				}
+
+				// The hair root velocity
+				const size_t & ri = particleStartIndexForStrand[si]; // Strand root index
+				auto pr = p(ri);
+
+				// Compute the hair root velocity
+				outVel[particleStartIndexForStrand[si]] = (info.transform * pr->restPos - info.previousTransform * pr->restPos) / info.t;
 			});
 		}
 

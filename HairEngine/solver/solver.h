@@ -5,12 +5,15 @@
 
 #pragma once
 
+#include <functional>
+
 #include "../geo/hair.h"
 #include "../precompiled/precompiled.h"
 
 namespace HairEngine {
 
 	struct IntegrationInfo;
+	class Integrator;
 
 	/**
 	 * Base class of the solver class. A solver could be viewed as a function which accepts several configuration
@@ -21,6 +24,9 @@ namespace HairEngine {
 	 * importantly, the "solve(const Hair &, const ItergrationInfo &)" to simulate the behavior of the solver.
 	 */
 	class Solver {
+
+		friend class Integrator;
+
 	HairEngine_Public:
 		/**
 		 * The setup function. You should allocate some space for storing some additional information that is useful
@@ -49,5 +55,36 @@ namespace HairEngine {
 		virtual void solve(Hair & hair, const IntegrationInfo & info) {}
 
 		virtual ~Solver() = default;
+
+	HairEngine_Protected:
+		Hair *hair = nullptr;
+
+		/* Helper function (used in "solve" context) */
+
+		/**
+		 * Iterate all the particles and do some stuff specified by the mapper.
+		 * 
+		 * @param parallel True to enable parallism, otherwise we will do the mapping sequentially.
+		 * @param mapper The mapping function that accepts a particle pointer
+		 */
+		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr)> &mapper) {
+			for (size_t i = 0; i < hair->nparticle; ++i) {
+				mapper(hair->particles + i);
+			}
+		}
+
+		/**
+		 * Iterate all the strands and do some stuff specified by the mapper
+		 * 
+		 * @param parallel True to enable parallism, if enabling, it must guarantee that the 
+		 * order for mapping will not affect the final result. Otherwise, we will map sequentially.
+		 * 
+		 * @param mapper The function for mapping
+		 */
+		void mapStrand(bool parallel, const std::function<void(Hair::Strand::Ptr)> &mapper) {
+			for (size_t i = 0; i < hair->nstrand; ++i) {
+				mapper(hair->strands + i);
+			}
+		}
 	};
 }

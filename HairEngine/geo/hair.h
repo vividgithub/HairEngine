@@ -22,6 +22,9 @@ namespace HairEngine {
 	class Hair;
 	class Integrator;
 	class SelleMassSpringSolverBase;
+	class HairVisualizer;
+	class PositionCommiter;
+	class Solver;
 
 	std::ostream & operator<<(std::ostream & os, const Hair & hair);
 
@@ -32,7 +35,10 @@ namespace HairEngine {
 
 		friend class Integrator;
 		friend class SelleMassSpringSolverBase;
-
+		friend class HairVisualizer;
+		friend class PositionCommiter;
+		friend class Solver;
+		
 	HairEngine_Public:
 		struct Strand;
 
@@ -302,6 +308,21 @@ namespace HairEngine {
 			return resample(sampledStrandIndices.begin(), sampledStrandIndices.end());
 		}
 
+		/**
+		* Write hair information into specific stream
+		*
+		* @param os The ostream to write to
+		*/
+		void stream(std::ostream & os) const {
+			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nparticle));
+			for (size_t i = 0; i < nparticle; ++i)
+				FileUtility::binaryWriteVector3f(os, particles[i].pos);
+
+			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nstrand));
+			for (size_t i = 0; i < nstrand; ++i)
+				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strands[i].particleInfo.nparticle));
+		}
+
 	HairEngine_Protected:
 
 		/**
@@ -445,21 +466,6 @@ namespace HairEngine {
 		void writeToFile(const std::string & filePath) const {
 			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
 			stream(fout);
-		}
-
-		/**
-		 * Write hair information into specific stream
-		 * 
-		 * @param os The ostream to write to
-		 */
-		void stream(std::ostream & os) const {
-			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nparticle));
-			for (size_t i = 0; i < nparticle; ++i)
-				FileUtility::binaryWriteVector3f(os, particles[i].pos);
-
-			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nstrand));
-			for (size_t i = 0; i < nstrand; ++i)
-				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strands[i].particleInfo.nparticle));
 		}
 	};
 }

@@ -14,8 +14,8 @@ namespace HairEngine {
 		 * @param filenameTemplate Describe in Visualizer
 		 * @param selleMassSpringSolver The observing solver
 		 */
-		SelleMassSpringVisualizer(const std::string & directory, const std::string & filenameTemplate, SelleMassSpringSolverBase * selleMassSpringSolver):
-			Visualizer(directory, filenameTemplate), selleMassSpringSolver(selleMassSpringSolver) {}
+		SelleMassSpringVisualizer(const std::string & directory, const std::string & filenameTemplate, float timestep, SelleMassSpringSolverBase * selleMassSpringSolver):
+			Visualizer(directory, filenameTemplate, timestep), selleMassSpringSolver(selleMassSpringSolver) {}
 
 		void visualize(std::ostream& os, Hair& hair, const IntegrationInfo& info) override {
 			// Show the springs

@@ -5,12 +5,18 @@
 
 #pragma once
 #include <Eigen/Eigen>
+#include <Eigen/StdVector>
 #include <vector>
 
 #include "../precompiled/precompiled.h"
 #include "../util/mathutil.h"
 
 namespace HairEngine {
+
+	struct IntegrationInfo;
+
+	using IntegrationInfoVector = std::vector<IntegrationInfo, Eigen::aligned_allocator<IntegrationInfo>>;
+
 	/**
 	 * The integration info stores some needed information for the solver, for example, the affine transform
 	 * for the head, the simulation time step, or the previous affine transform.
@@ -77,13 +83,13 @@ namespace HairEngine {
 		 * @param end The end iterator which yield float value
 		 */
 		template <typename FloatCastableIterator>
-		std::vector<IntegrationInfo> lerp(FloatCastableIterator begin, FloatCastableIterator end) const {
+		IntegrationInfoVector lerp(FloatCastableIterator begin, FloatCastableIterator end) const {
 			HairEngine_DebugAssert(end != begin);
 
 			auto preT = *begin;
 			auto preTransform = MathUtility::lerp(preT, ptr, tr);
 
-			std::vector<IntegrationInfo> infos;
+			IntegrationInfoVector infos;
 			for (auto p = begin + 1; p != end; ++p) {
 				auto currentT = *p;
 				auto currentTransform = MathUtility::lerp(currentT, ptr, tr);

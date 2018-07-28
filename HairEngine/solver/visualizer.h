@@ -29,9 +29,12 @@ namespace HairEngine {
 		 * @param filenameTemplate The template specifies the real filename for a certain simulation frame. 
 		 * Currently, we use "${F}" to specify current frame number. So a "${F}" substring will be replaced to 
 		 * the real frame number at different simulation step to avoid name conflict
+		 * @param The timesteip for writing another visualization file. It indicates the time interval to write a 
+		 * visualization summary file to the disk so that it could avoid write multiple intermediate simulation step 
+		 * with a small integration time.
 		 */
-		Visualizer(const std::string & directory, const std::string & filenameTemplate)
-			: directory(directory), filenameTemplate(filenameTemplate) {
+		Visualizer(const std::string & directory, const std::string & filenameTemplate, float timestep)
+			: directory(directory), filenameTemplate(filenameTemplate), timestep(timestep) {
 
 			// Append path seprator if needed
 			if (!StringUtility::endswith(this->directory, StringUtility::getPathSeparator()))
@@ -39,12 +42,21 @@ namespace HairEngine {
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) final override {
-			auto filepath = getFilepath(info);
 
-			std::fstream fout(filepath, std::ios::out | std::ios::binary);
-			visualize(fout, hair, info);
+			currentTime += info.t;
 
-			fout.close();
+			// Works well even when info.t > timestep
+			if (currentTime >= 0.995f * timestep) {
+				auto filepath = getFilepath(info);
+				++indexCounter;
+
+				std::fstream fout(filepath, std::ios::out | std::ios::binary);
+				visualize(fout, hair, info);
+
+				fout.close();
+
+				currentTime -= timestep;
+			}
 		}
 
 		/**
@@ -61,10 +73,14 @@ namespace HairEngine {
 	HairEngine_Protected:
 		std::string directory;
 		std::string filenameTemplate;
+		float timestep;
+
+		float currentTime = 0.0f;
+		size_t indexCounter = 1; // We use the counter starts from 1
 
 		std::string getFilepath(const IntegrationInfo & info) {
 			std::stringstream ss;
-			ss << info.f;
+			ss << indexCounter;
 
 			auto filename = StringUtility::replace(filenameTemplate, "${F}", ss.str());
 
