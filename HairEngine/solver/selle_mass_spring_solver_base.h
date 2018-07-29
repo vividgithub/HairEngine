@@ -8,6 +8,7 @@
 #include "../solver/solver.h"
 #include "hair_visualizer.h"
 #include "../util/mathutil.h"
+#include "../util/parallutil.h"
 
 namespace HairEngine {
 
@@ -222,14 +223,14 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			mapParticle(false, [this, &info](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, &info](Hair::Particle::Ptr par, size_t i) {
 				pos1[i] = par->pos;
 				vel1[i] = par->vel;
 			});
 
 			integrate(pos1, vel1, vel2, info);
 
-			mapParticle(false, [this, &info](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, &info](Hair::Particle::Ptr par, size_t i) {
 				par->vel = vel2[i];
 
 				// Only commit the position of the virtual particles
@@ -382,9 +383,8 @@ namespace HairEngine {
 		 * the modifier.
 		 */
 		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr, size_t)> & mapper) {
-			// We only implement the sequential version now
-			for (size_t i = 0; i < nparticle; ++i)
-				mapper(p(i), i);
+			const auto & block = [this, &mapper](size_t i) { mapper(p(i), i); };
+			ParallismUtility::conditionalParallelFor(parallel, 0, nparticle, block);
 		}
 
 		/**
@@ -395,9 +395,7 @@ namespace HairEngine {
 		 * @param mapper A callbale function which accepts a strand index, do some stuff with the index
 		 */
 		void mapStrand(bool parallel, const std::function<void(size_t)> & mapper) {
-			// We only implement the sequential now
-			for (size_t i = 0; i < nstrand; ++i)
-				mapper(i);
+			ParallismUtility::conditionalParallelFor(parallel, 0, nstrand, mapper);
 		}
 
 		/**

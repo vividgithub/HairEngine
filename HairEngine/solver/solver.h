@@ -9,6 +9,7 @@
 
 #include "../geo/hair.h"
 #include "../precompiled/precompiled.h"
+#include "../util/parallutil.h"
 
 namespace HairEngine {
 
@@ -68,9 +69,12 @@ namespace HairEngine {
 		 * @param mapper The mapping function that accepts a particle pointer
 		 */
 		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr)> &mapper) {
-			for (size_t i = 0; i < hair->nparticle; ++i) {
+
+			const auto & block = [&mapper, this] (size_t i) {
 				mapper(hair->particles + i);
-			}
+			};
+
+			ParallismUtility::conditionalParallelFor(parallel, 0, hair->nparticle, block);
 		}
 
 		/**
@@ -82,9 +86,11 @@ namespace HairEngine {
 		 * @param mapper The function for mapping
 		 */
 		void mapStrand(bool parallel, const std::function<void(Hair::Strand::Ptr)> &mapper) {
-			for (size_t i = 0; i < hair->nstrand; ++i) {
+			const auto & block = [&mapper, this] (size_t i) {
 				mapper(hair->strands + i);
-			}
+			};
+
+			ParallismUtility::conditionalParallelFor(parallel, 0, hair->nstrand, block);
 		}
 	};
 }

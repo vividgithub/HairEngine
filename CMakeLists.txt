@@ -19,6 +19,7 @@ set(CMAKE_CXX_STANDARD 14)
 
 # Options
 option(HAIRENGINE_ENABLE_VPBRT "Enable VPbrt related class and functions" OFF)
+option(HAIRENGINE_ENABLE_OPENMP "Enable openmp for parallism work, otherwise all the code that related to openmp will be sequential" ON)
 
 # All the common compile source files
 set(
@@ -38,9 +39,15 @@ set(
 set(HAIRENGINE_LIBRARIES) 
 
 # Compile tags
-set(HAIRENGINE_COMPILE_OPTIONS)
+set(HAIRENGINE_COMPILE_OPTIONS "-DEIGEN_DONT_PARALLELIZE")
 if (HAIRENGINE_ENABLE_VPBRT) 
 	set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_VPBRT")
+endif()
+if (HAIRENGINE_ENABLE_OPENMP)
+	find_package(OpenMP REQUIRED)
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS})
+	message(STATUS "OpenMp added with flags: " ${OpenMP_CXX_FLAGS})
+	set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_OPENMP")
 endif()
 
 # We use the main file to generate executable files for debugging in testing.

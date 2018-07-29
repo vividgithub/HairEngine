@@ -29,11 +29,11 @@ namespace HairEngine {
 			float f1 = info.t / pmass;
 
 			// Initialize the impluse
-			mapParticle(false, [this, vel](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, vel](Hair::Particle::Ptr par, size_t i) {
 				im[i] = par->impulse - damping * vel[i];
 			});
 
-			mapStrand(false, [this, f1, pos, vel, outVel, &info] (size_t si) {
+			mapStrand(true, [this, f1, pos, vel, outVel, &info] (size_t si) {
 				// Compute the spring force
 				for (auto spIt = springs + springStartIndexForStrand[si]; 
 					spIt != springs + springStartIndexForStrand[si] + nspringInStrand[si]; 

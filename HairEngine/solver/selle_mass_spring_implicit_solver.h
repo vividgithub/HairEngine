@@ -34,7 +34,7 @@ namespace HairEngine {
 			const float f2 = pmass + damping * info.t;
 
 			if (enableParallism) {
-				mapStrand(false, [this, &info, f1, f2, vel, pos, outVel](size_t si) {
+				mapStrand(true, [this, &info, f1, f2, vel, pos, outVel](size_t si) {
 					_integrate(pos, vel, outVel, info, f1, f2, static_cast<int>(si));
 				});
 			}
@@ -141,7 +141,7 @@ namespace HairEngine {
 			A.setFromTriplets(triplets.begin(), triplets.end());
 			Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> cg;
 			cg.compute(A);
-			Eigen::VectorXf x = cg.solve(b);
+			Eigen::VectorXf x = cg.solveWithGuess(b, b);
 
 			// Assign back
 			for (auto i = particleStartIndex; i < particleEndIndex; ++i) {

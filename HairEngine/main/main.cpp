@@ -19,7 +19,7 @@ int main() {
 	float integrationStep = 5e-3f;
 
 	cout << "Reading Hair" << endl;
-	auto hair = std::make_shared<Hair>(Hair("C:\\Users\\VividWinPC1\\Developer\\Project\\HairEngine\\Houdini\\Resources\\Models\\Feamle 04 Retop\\Hair\\Straight-50000.hair").resample(12351));
+	auto hair = std::make_shared<Hair>(Hair("C:\\Users\\VividWinPC1\\Developer\\Project\\HairEngine\\Houdini\\Resources\\Models\\Feamle 04 Retop\\Hair\\Straight-50000.hair").resample(1235));
 
 	Integrator integrator(hair, Eigen::Affine3f::Identity());
 
@@ -35,7 +35,7 @@ int main() {
 			4.0f, // Colinear max degree
 			25.0f // Mass
 		),
-		true 
+		false 
 	);
 	integrator.addSolver<PositionCommiter>();
 	integrator.addSolver<HairVisualizer>(R"(C:\Users\VividWinPC1\Desktop\HairData)", "TestHair-${F}-Hair.vply", simulationStep, massSpringSolver.get());
