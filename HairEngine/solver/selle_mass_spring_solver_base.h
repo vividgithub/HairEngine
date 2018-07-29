@@ -8,6 +8,7 @@
 #include "../solver/solver.h"
 #include "hair_visualizer.h"
 #include "../util/mathutil.h"
+#include "../util/parallutil.h"
 
 namespace HairEngine {
 
@@ -382,9 +383,8 @@ namespace HairEngine {
 		 * the modifier.
 		 */
 		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr, size_t)> & mapper) {
-			// We only implement the sequential version now
-			for (size_t i = 0; i < nparticle; ++i)
-				mapper(p(i), i);
+			const auto & block = [this, &mapper](size_t i) { mapper(p(i), i); };
+			ParallismUtility::conditionalParallelFor(parallel, 0, nparticle, block);
 		}
 
 		/**
@@ -395,9 +395,7 @@ namespace HairEngine {
 		 * @param mapper A callbale function which accepts a strand index, do some stuff with the index
 		 */
 		void mapStrand(bool parallel, const std::function<void(size_t)> & mapper) {
-			// We only implement the sequential now
-			for (size_t i = 0; i < nstrand; ++i)
-				mapper(i);
+			ParallismUtility::conditionalParallelFor(parallel, 0, nstrand, mapper);
 		}
 
 		/**
