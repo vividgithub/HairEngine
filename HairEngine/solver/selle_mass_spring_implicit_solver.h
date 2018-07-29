@@ -33,80 +33,121 @@ namespace HairEngine {
 			const float f1 = info.t * info.t;
 			const float f2 = pmass + damping * info.t;
 
-			mapStrand(true, [this, &info, f1, f2, vel, pos, outVel](size_t si)
-			{
-				size_t n = nparticleInStrand[si];
+			if (enableParallism) {
+				mapStrand(false, [this, &info, f1, f2, vel, pos, outVel](size_t si) {
+					_integrate(pos, vel, outVel, info, f1, f2, static_cast<int>(si));
+				});
+			}
+			else {
+				// Integrate all together
+				_integrate(pos, vel, outVel, info, f1, f2, -1);
+			}
 
-				Eigen::VectorXf b(n * 3);
-				Eigen::SparseMatrix<float> A(3 * n, 3 * n);
-				std::vector<Eigen::Triplet<float>> triplets;
+		}
 
-				// Iteration ignore the strand root
-				for (auto i = particleStartIndexForStrand[si] + 1; i < particleStartIndexForStrand[si] + n; ++i) {
-					const auto i3 = static_cast<int>((i - particleStartIndexForStrand[si]) * 3);
-					auto par = p(i);
+	HairEngine_Protected:
+		bool enableParallism;
 
-					//A.block<3, 3>(i3, i3) = (pmass + damping * info.t) * Eigen::Matrix3f::Identity();
+		void _integrate(Eigen::Vector3f* pos, Eigen::Vector3f* vel, Eigen::Vector3f* outVel, const IntegrationInfo& info, float f1, float f2, int si) {
+
+			size_t n; // Number of particles to solve
+			size_t particleStartIndex; // The start index of solving particles
+			size_t particleEndIndex; // The end index of the sovling particles
+			Spring *springStartPtr, *springEndPtr; // The start and end spring pointer
+
+			if (si >= 0) {
+				// True strand
+				n = nparticleInStrand[si];
+				particleStartIndex = particleStartIndexForStrand[si];
+				particleEndIndex = particleStartIndex + n;
+				springStartPtr = springs + springStartIndexForStrand[si];
+				springEndPtr = springStartPtr + nspringInStrand[si];
+			}
+			else {
+				// Solve all together
+				n = nparticle;
+				particleStartIndex = 0;
+				particleEndIndex = nparticle;
+				springStartPtr = springs;
+				springEndPtr = springs + nspring;
+			}
+
+			Eigen::VectorXf b(n * 3);
+			Eigen::SparseMatrix<float> A(3 * n, 3 * n);
+			std::vector<Eigen::Triplet<float>> triplets;
+
+			// Helper function
+			const auto & getVectorIndex = [particleStartIndex](size_t i) -> int {
+				return static_cast<int>(3 * (i - particleStartIndex));
+			};
+			const auto & isStrandRoot = [this](size_t i) -> bool {
+				return isNormalParticle(i) && p(i)->localIndex == 0;
+			};
+
+			for (auto i = particleStartIndex; i < particleEndIndex; ++i) {
+				const auto i3 = getVectorIndex(i);
+				auto par = p(i);
+
+				// If it is not the strand root, assign the triplets and b 
+				if (!isStrandRoot(i)) {
 					b.segment<3>(i3) = pmass * vel[i] + par->impulse * info.t;
 
 					triplets.emplace_back(i3, i3, f2);
 					triplets.emplace_back(i3 + 1, i3 + 1, f2);
 					triplets.emplace_back(i3 + 2, i3 + 2, f2);
 				}
+			}
+
+			for (auto sp = springStartPtr; sp != springEndPtr; ++sp) {
+
+				Eigen::Matrix3f dm;
+				const Eigen::Vector3f springImpluse = info.t * MathUtility::massSpringForce(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
+
+				const auto i1_3 = getVectorIndex(sp->i1);
+				const auto i2_3 = getVectorIndex(sp->i2);
+
+				b.segment<3>(i1_3) += springImpluse;
+				b.segment<3>(i2_3) -= springImpluse;
+
+				Eigen::Matrix3f vm = (f1 * sp->k) * dm; //Velocity matrix
+
+				// Check whether i1 is the strand root, if so, we don't fill that row
+				std::vector<int> rows = { i2_3, i1_3 };
+				std::vector<int> cols = { i1_3, i2_3 };
+				if (isStrandRoot(sp->i1))
+					rows.erase(rows.end() - 1);
+
+				for (auto row : rows)
+					for (auto col : cols)
+						for (int i = 0; i < 3; ++i)
+							for (int j = 0; j < 3; ++j)
+								triplets.emplace_back(row + i, col + j, (row == col ? 1.0f : -1.0f) * vm(i, j));
+			}
+
+			// Clear the first row and make the velocity match the body transform velocity
+			for (size_t i = particleStartIndex; i < particleEndIndex; ++i) if (isStrandRoot(i)) {
+				const auto i3 = getVectorIndex(i);
+
+				triplets.emplace_back(i3, i3, 1.0f);
+				triplets.emplace_back(i3 + 1, i3 + 1, 1.0f);
+				triplets.emplace_back(i3 + 2, i3 + 2, 1.0f);
+
+				auto par = p(i);
+				b.segment<3>(i3) = (info.transform * par->restPos - info.previousTransform * par->restPos) / info.t;
+			}
 
 
-				for (auto sp = springs + springStartIndexForStrand[si]; sp != springs + springStartIndexForStrand[si] + nspringInStrand[si]; ++sp) {
+			// Conjugate solver
+			A.setFromTriplets(triplets.begin(), triplets.end());
+			Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> cg;
+			cg.compute(A);
+			Eigen::VectorXf x = cg.solve(b);
 
-					Eigen::Matrix3f dm;
-					const Eigen::Vector3f springImpluse = info.t * MathUtility::massSpringForce(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
-
-					const auto i1_3 = static_cast<int>(3 * (sp->i1 - particleStartIndexForStrand[si]));
-					const auto i2_3 = static_cast<int>(3 * (sp->i2 - particleStartIndexForStrand[si]));
-
-					b.segment<3>(i1_3) += springImpluse;
-					b.segment<3>(i2_3) -= springImpluse;
-
-					Eigen::Matrix3f vm = (f1 * sp->k) * dm; //Velocity matrix
-
-					// Check whether i1 is the strand root, if so, we don't fill that row
-					std::vector<int> rows = { i2_3, i1_3 };
-					std::vector<int> cols = { i1_3, i2_3 };
-					if (isNormalParticle(sp->i1) && p(sp->i1)->localIndex == 0)
-						rows.erase(rows.end() - 1);
-					for (auto row : rows)
-						for (auto col : cols)
-							for (int i = 0; i < 3; ++i)
-								for (int j = 0; j < 3; ++j)
-									triplets.emplace_back(row + i, col + j, (row == col ? 1.0f : -1.0f) * vm(i, j));
-					
-					//A.block<3, 3>(i1_3, i1_3) += vm;
-					//A.block<3, 3>(i1_3, i2_3) -= vm;
-					//A.block<3, 3>(i2_3, i2_3) += vm;
-					//A.block<3, 3>(i2_3, i1_3) -= vm;
-				}
-
-				// Clear the first row and make the velocity match the body transform velocity
-				triplets.emplace_back(0, 0, 1.0f);
-				triplets.emplace_back(1, 1, 1.0f);
-				triplets.emplace_back(2, 2, 1.0f);
-				auto rootPar = p(particleStartIndexForStrand[si]);
-				b.segment<3>(0) = (info.transform * rootPar->restPos - info.previousTransform * rootPar->restPos) / info.t;
-
-				//Conjugate solver
-				A.setFromTriplets(triplets.begin(), triplets.end());
-				Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> cg;
-				cg.compute(A);
-				Eigen::VectorXf x = cg.solve(b);
-
-				//Assign back
-				for (auto i = particleStartIndexForStrand[si]; i < particleStartIndexForStrand[si] + n; ++i) {
-					const size_t i3 = (i - particleStartIndexForStrand[si]) * 3;
-					outVel[i] = x.segment<3>(i3);
-				}
-			});
+			// Assign back
+			for (auto i = particleStartIndex; i < particleEndIndex; ++i) {
+				const auto i3 = getVectorIndex(i);
+				outVel[i] = x.segment<3>(i3);
+			}
 		}
-
-	HairEngine_Protected:
-		bool enableParallism;
 	};
 }
