@@ -42,31 +42,45 @@ namespace HairEngine {
 		};
 
 		/**
+		 * Constructor configuration to initialize a SelleMassSpringSolverBase
+		 */
+		struct Configuration {
+			float stretchStiffness; ///< Stiffness of the stretch spring
+			float bendingStiffness; ///< Stiffness of the bending spring
+			float torsionStiffness; ///< Stiffness of the torsion spring
+			float altitudeStiffness; ///< Stiffness of the altitude spring
+			float damping; ///< The damping coefficient
+			bool enableStrainLimiting; ///< Enable strain limiting to protect the inextensibility of the hair
+			float colinearMaxDegree; ///< We will insert additional virtual particles if two adjacent line segments are "nearly" colinear, we treat the two adjacent line segment colinear is the included angle is less than colinearMaxDegree
+			float mass; ///< The mass of the single hair strand
+
+			/**
+			 * Constructor
+			 */
+			Configuration(
+				float stretchStiffness,
+				float bendingStiffness,
+				float torsionStiffness,
+				float altitudeStiffness,
+				float damping,
+				bool enableStrainLimiting,
+				float colinearMaxDegree,
+				float mass
+			): stretchStiffness(stretchStiffness), bendingStiffness(bendingStiffness), 
+			torsionStiffness(torsionStiffness), altitudeStiffness(altitudeStiffness), damping(damping),
+			enableStrainLimiting(enableStrainLimiting), colinearMaxDegree(colinearMaxDegree), mass(mass) {}
+		};
+
+		/**
 		 * Constructor
 		 * 
-		 * @param stretchStiffness Stiffness of the stretch spring
-		 * @param bendingStiffness Stiffness of the bending spring
-		 * @param torsionStiffness Stiffness of the torsion spring
-		 * @param damping The damping coefficient
-		 * @param maxIntegrationTime The integration time limitation, if the max integration time is larger
-		 * than the simulation time, it will use only one iteration
-		 * @param enableStrainLimiting Enable strain limiting to protect the inextensibility of the hair
-		 * @param colinearMaxDegree We will insert additional virtual particles if two adjacent line segments are "nearly" colinear, 
-		 * we treat the two adjacent line segment colinear is the included angle is less than colinearMaxDegree
-		 * @param The mass of the single hair strand
+		 * @param Configuration The configuration for initialization
 		 */
-		SelleMassSpringSolverBase(
-			float stretchStiffness = 50000.0f, 
-			float bendingStiffness = 8000.0f, 
-			float torsionStiffness = 8000.0f,
-			float damping = 15.0f,
-			bool enableStrainLimiting = true,
-			float colinearMaxDegree = 4.0f,
-			float mass = 25.0f
-		): stretchStiffness(stretchStiffness), bendingStiffness(bendingStiffness), 
-			torsionStiffness(torsionStiffness), damping(damping),
-			enableStrainLimiting(enableStrainLimiting), colinearMaxRad(colinearMaxDegree * 3.141592f / 180.0f), 
-			mass(mass) {}
+		SelleMassSpringSolverBase( const Configuration & conf): 
+			stretchStiffness(conf.stretchStiffness), bendingStiffness(conf.bendingStiffness), 
+			torsionStiffness(conf.torsionStiffness), damping(conf.damping),
+			enableStrainLimiting(conf.enableStrainLimiting), colinearMaxRad(conf.colinearMaxDegree * 3.141592f / 180.0f), 
+			mass(conf.mass) {}
 
 		void setup(const Hair& hair, const Eigen::Affine3f & currentTransform) override {
 			// Inverse the transform
@@ -278,6 +292,10 @@ namespace HairEngine {
 			return nvirtual;
 		}
 
+		const float & getParticleMass() const {
+			return pmass;
+		}
+
 	HairEngine_Protected:
 		float stretchStiffness;
 		float bendingStiffness;
@@ -364,15 +382,9 @@ namespace HairEngine {
 		 * the modifier.
 		 */
 		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr, size_t)> & mapper) {
-			if (parallel) {
-				// Not implemented
-				assert(false);
-			}
-			else {
-				// Sequential
-				for (size_t i = 0; i < nparticle; ++i)
-					mapper(p(i), i);
-			}
+			// We only implement the sequential version now
+			for (size_t i = 0; i < nparticle; ++i)
+				mapper(p(i), i);
 		}
 
 		/**
@@ -383,15 +395,9 @@ namespace HairEngine {
 		 * @param mapper A callbale function which accepts a strand index, do some stuff with the index
 		 */
 		void mapStrand(bool parallel, const std::function<void(size_t)> & mapper) {
-			if (parallel) {
-				// Not implemented
-				assert(false);
-			}
-			else {
-				// Sequential
-				for (size_t i = 0; i < nstrand; ++i)
-					mapper(i);
-			}
+			// We only implement the sequential now
+			for (size_t i = 0; i < nstrand; ++i)
+				mapper(i);
 		}
 
 		/**

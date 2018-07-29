@@ -48,7 +48,7 @@ namespace HairEngine {
 	 * The force applier which apply force equally to each particles, it is useful for 
 	 * simulating some fixed field like gravity
 	 */
-	class FixedForceApplier: public ForceApplier {
+	class FixedAccelerationApplier: public ForceApplier {
 
 	HairEngine_Public:
 		/**
@@ -56,16 +56,26 @@ namespace HairEngine {
 		 * 
 		 * @param initial Whether the force is used to initialize the particle "impulse" 
 		 * property
-		 * @param fixedForce The force that applies to particles
+		 * @param acceleration The acceleartion that applies to particles
 		 */
-		FixedForceApplier(bool initial, Eigen::Vector3f fixedForce) :
-			ForceApplier(initial) , fixedForce(std::move(fixedForce)) {}
+		FixedAccelerationApplier(bool initial, Eigen::Vector3f acceleration) :
+			ForceApplier(initial) , acceleartion(std::move(acceleration)) {}
+
+		/**
+		 * Call it before the simulation begins
+		 * 
+		 * @param massPtr The mass pointer that points to the paticle mass
+		 */
+		void setMass(const float *massPtr) {
+			this->massPtr = massPtr;
+		}
 
 		Eigen::Vector3f getForce(Hair& hair, Hair::Particle::Ptr par) const override {
-			return fixedForce;
+			return acceleartion * (*massPtr);
 		}
 
 	HairEngine_Protected:
-		Eigen::Vector3f fixedForce;
+		Eigen::Vector3f acceleartion; ///< The accleration speed
+		const float *massPtr = nullptr; ///< The pointer to the particle mass so that we can get the force 
 	};
 }

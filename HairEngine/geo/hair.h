@@ -25,6 +25,7 @@ namespace HairEngine {
 	class HairVisualizer;
 	class PositionCommiter;
 	class Solver;
+	class SelleMassSpringImplicitSolver;
 
 	std::ostream & operator<<(std::ostream & os, const Hair & hair);
 
@@ -38,6 +39,7 @@ namespace HairEngine {
 		friend class HairVisualizer;
 		friend class PositionCommiter;
 		friend class Solver;
+		friend class SelleMassSpringImplicitSolver;
 		
 	HairEngine_Public:
 		struct Strand;

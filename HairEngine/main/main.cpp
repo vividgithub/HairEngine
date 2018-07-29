@@ -5,6 +5,7 @@
 #include "../solver/force_applier.h"
 #include "../solver/hair_visualizer.h"
 #include "../solver/selle_mass_spring_semi_implicit_euler_solver.h"
+#include "../solver/selle_mass_spring_implicit_solver.h"
 #include "../solver/selle_mass_spring_visualizer.h"
 #include "../solver/position_commiter.h"
 
@@ -12,29 +13,35 @@ int main() {
 	using namespace HairEngine;
 	using namespace std;
 
-	int simulationCount = 100;
-	float simulationStep = 0.01f;
+	int simulationCount = 300;
+	float simulationStep = 5e-3f;
 	float totalSimulationTime = simulationStep * simulationCount;
-	float integrationStep = 5e-7f;
+	float integrationStep = 5e-3f;
 
 	cout << "Reading Hair" << endl;
 	auto hair = std::make_shared<Hair>(Hair("C:\\Users\\VividWinPC1\\Developer\\Project\\HairEngine\\Houdini\\Resources\\Models\\Feamle 04 Retop\\Hair\\Straight-50000.hair").resample(12351));
 
 	Integrator integrator(hair, Eigen::Affine3f::Identity());
 
-	integrator.addSolver<FixedForceApplier>(true, Eigen::Vector3f(0.0f, -9.81f, 0.0f));
-	auto massSpringSolver = integrator.addSolver<SelleMassSpringSemiImplcitEulerSolver>(
-		500000.0f, // Stretch stiffness
-		200000.0f, // Bending stiffness
-		200000.0f, // Torsion stiffness
-		15.0f, // Damping
-		4.0f, // Colinear max degree
-		true, // Enable strain limiting
-		25.0f // Mass
+	auto gravityApplier = integrator.addSolver<FixedAccelerationApplier>(true, Eigen::Vector3f(0.0f, -9.81f, 0.0f));
+	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(
+		SelleMassSpringSolverBase::Configuration(
+			500000.0f, // Stretch stiffness
+			10000.f, // Bending stiffness
+			10000.f, // Torsion stiffness
+			1000.0f, // Alittude stiffness
+			15.0f, // Damping
+			true, // Enable strain limiting
+			4.0f, // Colinear max degree
+			25.0f // Mass
+		),
+		false 
 	);
 	integrator.addSolver<PositionCommiter>();
 	integrator.addSolver<HairVisualizer>(R"(C:\Users\VividWinPC1\Desktop\HairData)", "TestHair-${F}-Hair.vply", simulationStep, massSpringSolver.get());
 	integrator.addSolver<SelleMassSpringVisualizer>(R"(C:\Users\VividWinPC1\Desktop\HairData)", "TestHair-${F}-Selle.vply", simulationStep, massSpringSolver.get());
+
+	gravityApplier->setMass(&massSpringSolver->getParticleMass());
 
 	cout << "Simulate" << endl;
 
