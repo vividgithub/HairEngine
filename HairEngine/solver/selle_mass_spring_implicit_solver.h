@@ -34,7 +34,7 @@ namespace HairEngine {
 			const float f2 = pmass + damping * info.t;
 
 			if (enableParallism) {
-				mapStrand(false, [this, &info, f1, f2, vel, pos, outVel](size_t si) {
+				mapStrand(true, [this, &info, f1, f2, vel, pos, outVel](size_t si) {
 					_integrate(pos, vel, outVel, info, f1, f2, static_cast<int>(si));
 				});
 			}

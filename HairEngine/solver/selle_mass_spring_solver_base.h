@@ -223,14 +223,14 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			mapParticle(false, [this, &info](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, &info](Hair::Particle::Ptr par, size_t i) {
 				pos1[i] = par->pos;
 				vel1[i] = par->vel;
 			});
 
 			integrate(pos1, vel1, vel2, info);
 
-			mapParticle(false, [this, &info](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, &info](Hair::Particle::Ptr par, size_t i) {
 				par->vel = vel2[i];
 
 				// Only commit the position of the virtual particles
