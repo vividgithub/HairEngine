@@ -141,7 +141,7 @@ namespace HairEngine {
 			A.setFromTriplets(triplets.begin(), triplets.end());
 			Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> cg;
 			cg.compute(A);
-			Eigen::VectorXf x = cg.solve(b);
+			Eigen::VectorXf x = cg.solveWithGuess(b, b);
 
 			// Assign back
 			for (auto i = particleStartIndex; i < particleEndIndex; ++i) {
