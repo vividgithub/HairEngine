@@ -86,7 +86,7 @@ namespace HairEngine {
 			// Helper function
 			const auto & getVectorIndex = [this, particleStartIndex, si](size_t i) -> int {
 				int relativeIndex = static_cast<int>(i - particleStartIndex);
-				relativeIndex -= (si >= 0) ? 1 : (p(i)->strandIndex + 1); // Minus the number of strand root particle before it
+				relativeIndex -= static_cast<int>((si >= 0) ? 1 : (p(i)->strandIndex + 1)); // Minus the number of strand root particle before it
 				return 3 * relativeIndex; // Reindex to MatrixXf and VectorXf
 			};
 

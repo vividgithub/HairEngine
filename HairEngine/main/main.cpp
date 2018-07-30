@@ -7,6 +7,7 @@
 #include "../solver/selle_mass_spring_semi_implicit_euler_solver.h"
 #include "../solver/selle_mass_spring_implicit_solver.h"
 #include "../solver/selle_mass_spring_visualizer.h"
+#include "../solver/selle_mass_spring_implicit_heptadiagnoal_solver.h"
 #include "../solver/position_commiter.h"
 
 int main() {
@@ -14,7 +15,7 @@ int main() {
 	using namespace std;
 
 	int simulationCount = 300;
-	float simulationStep = 5e-3f;
+	float simulationStep = 0.03f;
 	float totalSimulationTime = simulationStep * simulationCount;
 	float integrationStep = 5e-3f;
 
@@ -24,18 +25,17 @@ int main() {
 	Integrator integrator(hair, Eigen::Affine3f::Identity());
 
 	auto gravityApplier = integrator.addSolver<FixedAccelerationApplier>(true, Eigen::Vector3f(0.0f, -9.81f, 0.0f));
-	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(
+	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(
 		SelleMassSpringSolverBase::Configuration(
 			500000.0f, // Stretch stiffness
 			10000.f, // Bending stiffness
 			10000.f, // Torsion stiffness
 			1000.0f, // Alittude stiffness
-			15.0f, // Damping
+			0.0f, // Damping
 			true, // Enable strain limiting
 			4.0f, // Colinear max degree
 			25.0f // Mass
-		),
-		true 
+		)
 	);
 	integrator.addSolver<PositionCommiter>();
 	integrator.addSolver<HairVisualizer>(R"(C:\Users\VividWinPC1\Desktop\HairData)", "TestHair-${F}-Hair.vply", simulationStep, massSpringSolver.get());
