@@ -5,6 +5,7 @@
 #endif
 
 #include <functional>
+#include <thread>
 
 #include "../precompiled/precompiled.h"
 
@@ -14,6 +15,7 @@ namespace HairEngine {
 	 */
 	class ParallismUtility {
 	HairEngine_Public:
+
 		/**
 		 * Parallel for loop for the range [start, end)
 		 * 
@@ -31,6 +33,66 @@ namespace HairEngine {
 			for (size_t i = start; i != end; ++i)
 				block(i);
 #endif
+		}
+
+		/**
+		 * Get the maximum thread to maximize the computation. If OpenMP is not included,
+		 * return 1.
+		 */
+		static inline unsigned getOpenMPMaxHardwareConcurrency() {
+#ifdef HAIRENGINE_ENABLE_OPENMP
+			const auto maxThreadNumber = std::thread::hardware_concurrency();
+			return maxThreadNumber > 0 ? maxThreadNumber : 1;
+#else
+			return 1;
+#endif
+		}
+
+		/**
+		 * Parallel for loop for the range [start, end), and with additional thread index
+		 * 
+		 * @param start The start index of the for loop
+		 * @param end The end index for the loop
+		 * @param block The executing block function which accepts a loop index i and an threadID, which indicating the thread number
+		 */
+		static inline void parallelForWithThreadIndex(size_t start, size_t end, const std::function<void(size_t, int)> & block) {
+#ifdef HAIRENGINE_ENABLE_OPENMP
+			static unsigned maxThreadNumber = 0;
+
+			// Only executing once
+			if (maxThreadNumber == 0) {
+				maxThreadNumber = getOpenMPMaxHardwareConcurrency();
+			}
+
+			#pragma omp parallel num_threads(maxThreadNumber)
+			{
+				int threadID = omp_get_thread_num();
+				#pragma omp for
+				for (size_t i = start; i != end; ++i)
+					block(i, threadID);
+			}
+#else
+			for (size_t i = start; i < end; ++i)
+				block(i, 0);
+#endif
+		}
+
+		/**
+		 * Conditional parallel for for "parllelForWithThreadIndex", we use a predicate to indicate whether to 
+		 * do it in parallel or sequential
+		 * 
+		 * @param parallel Whether to do the for loop in paralllel
+		 * @param start The start index of the for loop
+		 * @param end The end index of the for loop
+		 * @param block The executing block function
+		 */
+		static inline void conditionalParallelForWithThreadIndex(bool parallel, size_t start, size_t end, const std::function<void(size_t, int)> & block) {
+			if (parallel)
+				parallelForWithThreadIndex(start, end, block);
+			else {
+				for (size_t i = start; i != end; ++i)
+					block(i, 0); // We use thread 0 
+			}
 		}
 
 		/**
