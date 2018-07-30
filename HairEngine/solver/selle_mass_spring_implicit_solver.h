@@ -50,22 +50,29 @@ namespace HairEngine {
 
 		void _integrate(Eigen::Vector3f* pos, Eigen::Vector3f* vel, Eigen::Vector3f* outVel, const IntegrationInfo& info, float f1, float f2, int si) {
 
-			size_t n; // Number of particles to solve
+			/*
+			 * The conjugate gradient framework should ensure the matrix in linear problem A.x = b is self-adjointed. Thus
+			 * we cannot directly set the row in A and b into a known value to make to linear system works (which will break the 
+			 * self adjoint property). We must eliminate all the known particles (strand root) in the linear system and bypass its 
+			 * multiplication into b.
+			 */
+
+			size_t n; // Number of particles to solve (equals to nparticle - nstrand, since we know the eact velocity of strand root)
 			size_t particleStartIndex; // The start index of solving particles
 			size_t particleEndIndex; // The end index of the sovling particles
 			Spring *springStartPtr, *springEndPtr; // The start and end spring pointer
 
 			if (si >= 0) {
 				// True strand
-				n = nparticleInStrand[si];
+				n = nparticleInStrand[si] - 1;
 				particleStartIndex = particleStartIndexForStrand[si];
-				particleEndIndex = particleStartIndex + n;
+				particleEndIndex = particleStartIndex + nparticleInStrand[si];
 				springStartPtr = springs + springStartIndexForStrand[si];
 				springEndPtr = springStartPtr + nspringInStrand[si];
 			}
 			else {
 				// Solve all together
-				n = nparticle;
+				n = nparticle - nstrand;
 				particleStartIndex = 0;
 				particleEndIndex = nparticle;
 				springStartPtr = springs;
@@ -77,24 +84,32 @@ namespace HairEngine {
 			std::vector<Eigen::Triplet<float>> triplets;
 
 			// Helper function
-			const auto & getVectorIndex = [particleStartIndex](size_t i) -> int {
-				return static_cast<int>(3 * (i - particleStartIndex));
+			const auto & getVectorIndex = [this, particleStartIndex, si](size_t i) -> int {
+				int relativeIndex = static_cast<int>(i - particleStartIndex);
+				relativeIndex -= (si >= 0) ? 1 : (p(i)->strandIndex + 1); // Minus the number of strand root particle before it
+				return 3 * relativeIndex; // Reindex to MatrixXf and VectorXf
 			};
+
 			const auto & isStrandRoot = [this](size_t i) -> bool {
 				return isNormalParticle(i) && p(i)->localIndex == 0;
 			};
 
 			for (auto i = particleStartIndex; i < particleEndIndex; ++i) {
-				const auto i3 = getVectorIndex(i);
 				auto par = p(i);
 
-				// If it is not the strand root, assign the triplets and b 
 				if (!isStrandRoot(i)) {
+
+					const auto i3 = getVectorIndex(i);
+
 					b.segment<3>(i3) = pmass * vel[i] + par->impulse * info.t;
 
 					triplets.emplace_back(i3, i3, f2);
 					triplets.emplace_back(i3 + 1, i3 + 1, f2);
 					triplets.emplace_back(i3 + 2, i3 + 2, f2);
+				}
+				else {
+					// Fill the output veloicty into outVel
+					outVel[i] = (info.transform * par->restPos - info.previousTransform * par->restPos) / info.t;
 				}
 			}
 
@@ -102,40 +117,38 @@ namespace HairEngine {
 
 				Eigen::Matrix3f dm;
 				const Eigen::Vector3f springImpluse = info.t * MathUtility::massSpringForce(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
-
-				const auto i1_3 = getVectorIndex(sp->i1);
-				const auto i2_3 = getVectorIndex(sp->i2);
-
-				b.segment<3>(i1_3) += springImpluse;
-				b.segment<3>(i2_3) -= springImpluse;
-
 				Eigen::Matrix3f vm = (f1 * sp->k) * dm; //Velocity matrix
 
-				// Check whether i1 is the strand root, if so, we don't fill that row
-				std::vector<int> rows = { i2_3, i1_3 };
-				std::vector<int> cols = { i1_3, i2_3 };
-				if (isStrandRoot(sp->i1))
-					rows.erase(rows.end() - 1);
+				// The local index sp->i1 < sp->i2, so sp->i2 is not the strand root particle
+				const auto i2_3 = getVectorIndex(sp->i2);
 
-				for (auto row : rows)
-					for (auto col : cols)
-						for (int i = 0; i < 3; ++i)
-							for (int j = 0; j < 3; ++j)
-								triplets.emplace_back(row + i, col + j, (row == col ? 1.0f : -1.0f) * vm(i, j));
+				if (!isStrandRoot(sp->i1)) {
+					// Both are not strand root
+					const auto i1_3 = getVectorIndex(sp->i1);
+
+					b.segment<3>(i1_3) += springImpluse;
+					b.segment<3>(i2_3) -= springImpluse;
+
+					// Check whether i1 is the strand root, if so, we don't fill that row
+					int rows[] = { i2_3, i1_3 };
+					int cols[] = { i1_3, i2_3 };
+
+					for (auto row : rows)
+						for (auto col : cols)
+							for (int i = 0; i < 3; ++i)
+								for (int j = 0; j < 3; ++j)
+									triplets.emplace_back(row + i, col + j, (row == col ? 1.0f : -1.0f) * vm(i, j));
+				}
+				else {
+					// Since the row of i1 has been eliminated, we only need to fill the 3x3 matrix in (i2_3, i2_3). 
+					// Additionally, the original matrix -vm in (i2_3, i1_3) has been multiplied with the true veloicty in outVel[sp->i1] 
+					// and move into b
+					b.segment<3>(i2_3) += vm * outVel[sp->i1];
+					for (int i = 0; i < 3; ++i)
+						for (int j = 0; j < 3; ++j)
+							triplets.emplace_back(i2_3 + i, i2_3 + j, vm(i, j));
+				}
 			}
-
-			// Clear the first row and make the velocity match the body transform velocity
-			for (size_t i = particleStartIndex; i < particleEndIndex; ++i) if (isStrandRoot(i)) {
-				const auto i3 = getVectorIndex(i);
-
-				triplets.emplace_back(i3, i3, 1.0f);
-				triplets.emplace_back(i3 + 1, i3 + 1, 1.0f);
-				triplets.emplace_back(i3 + 2, i3 + 2, 1.0f);
-
-				auto par = p(i);
-				b.segment<3>(i3) = (info.transform * par->restPos - info.previousTransform * par->restPos) / info.t;
-			}
-
 
 			// Conjugate solver
 			A.setFromTriplets(triplets.begin(), triplets.end());
@@ -144,7 +157,7 @@ namespace HairEngine {
 			Eigen::VectorXf x = cg.solveWithGuess(b, b);
 
 			// Assign back
-			for (auto i = particleStartIndex; i < particleEndIndex; ++i) {
+			for (auto i = particleStartIndex; i < particleEndIndex; ++i) if (!isStrandRoot(i)) {
 				const auto i3 = getVectorIndex(i);
 				outVel[i] = x.segment<3>(i3);
 			}

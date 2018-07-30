@@ -35,7 +35,7 @@ int main() {
 			4.0f, // Colinear max degree
 			25.0f // Mass
 		),
-		false 
+		true 
 	);
 	integrator.addSolver<PositionCommiter>();
 	integrator.addSolver<HairVisualizer>(R"(C:\Users\VividWinPC1\Desktop\HairData)", "TestHair-${F}-Hair.vply", simulationStep, massSpringSolver.get());
