@@ -79,7 +79,7 @@ namespace HairEngine {
 		std::shared_ptr<Hair> hairPtr; ///< The simulated hair geometry
 
 		Eigen::Affine3f previousTransform; ///< The affine transform of previous hair geometry
-		size_t currentFrameNumber = 0; ///< Current frame number
+		int currentFrameNumber = 0; ///< Current frame number
 
 		std::vector<std::shared_ptr<Solver>> solverPtrs; ///< The solver pointer that use to guide the simulation
 	};

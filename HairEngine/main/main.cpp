@@ -14,6 +14,11 @@
 #include "../solver/selle_mass_spring_implicit_heptadiagnoal_solver.h"
 #include "../solver/position_commiter.h"
 
+using namespace HairEngine;
+using namespace std;
+using namespace Eigen;
+using std::cout;
+
 struct TimingSummary {
 	int nstrand;
 	int nparticle;
@@ -27,38 +32,27 @@ struct TimingSummary {
 		averageStrandTime(totalTime / nstrand), averageParticleTime(averageStrandTime / nparticle) {}
 };
 
-int main() {
-	using namespace HairEngine;
-	using namespace std;
-	using namespace Eigen;
-	using std::cout;
+SelleMassSpringSolverBase::Configuration massSpringCommonConfiguration(
+	500000.0f,
+	10000.0f,
+	10000.0f,
+	1000.0f,
+	6.0f,
+	true,
+	4.0f,
+	25.0f
+);
 
-	float integrationStep = 5e-3f;
-
-	int strandNumbers[] = { 2500, 5000, 10000, 20000, 30000, 40000, 50000 };
-	int particlePerStrandNumbers[] = { 15, 25, 50, 75, 100, 150 };
-	vector<string> simulatorNames = { "Conjugate Gradient", "Parallel Conjugate Gradient", "Our Method" };
-
-	SelleMassSpringSolverBase::Configuration conf(
-		500000.0f,
-		10000.0f,
-		10000.0f,
-		1000.0f,
-		6.0f,
-		true,
-		4.0f,
-		25.0f
-	);
-
-	vector<TimingSummary> summaries;
-
+void testOpenMPEnable() {
 	cout << "Check whether enable OpenMP" << endl;
 
-	#pragma omp parallel num_threads(ParallismUtility::getOpenMPMaxHardwareConcurrency())
+#pragma omp parallel num_threads(ParallismUtility::getOpenMPMaxHardwareConcurrency())
 	{
 		cout << "Thread ID = " << omp_get_thread_num() << endl;
 	}
+}
 
+void testEigenVectorization() {
 	cout << "Check whether enable Eigen vectorization" << endl;
 #ifdef EIGEN_VECTORIZE
 	cout << "Eigen vectorization enabled" << endl;
@@ -94,11 +88,17 @@ int main() {
 			ret2 += m4 * v4;
 	endTime = chrono::high_resolution_clock::now();
 	std::cout << "Timing for Matrix4f.Vector4f is " << (endTime - startTime).count() << endl;
+}
 
-	char c;
-	cin >> c;
+void testDifferentSelleMassSpringSolverSpeed() {
+	float integrationStep = 5e-3f;
 
-	return 0;
+	int strandNumbers[] = { 2500, 5000, 10000, 20000, 30000, 40000, 50000 };
+	int particlePerStrandNumbers[] = { 15, 25, 50, 75, 100, 150 };
+	vector<string> simulatorNames = { "Conjugate Gradient", "Parallel Conjugate Gradient", "Our Method" };
+
+	vector<TimingSummary> summaries;
+
 
 	// Write to summary file
 	fstream fout(R"(C:\Users\VividWinPC1\Desktop\HairTimeSummaryNew.csv)", ios::out);
@@ -119,13 +119,13 @@ int main() {
 				auto integrator = Integrator(hair, Eigen::Affine3f::Identity());
 
 				auto accelerationApplier = integrator.addSolver<FixedAccelerationApplier>(true, Eigen::Vector3f(0.0, -9.81f, 0.0f));
-				auto hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(conf);
+				auto hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
 				integrator.addSolver<PositionCommiter>();
 
 				accelerationApplier->setMass(&hairDynamicsSolver->getParticleMass());
 
 				// Integration
-				for (size_t i = 0; i < 5; ++i)
+				for (int i = 0; i < 5; ++i)
 					integrator.simulate(integrationStep, Eigen::Affine3f::Identity());
 			}
 
@@ -146,13 +146,13 @@ int main() {
 				auto accelerationApplier = integrator.addSolver<FixedAccelerationApplier>(true, Eigen::Vector3f(0.0, -9.81f, 0.0f));
 				shared_ptr<SelleMassSpringSolverBase> hairDynamicsSolver = nullptr;
 				if (simulatorName == "Conjugate Gradient") {
-					hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(conf, false);
+					hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(massSpringCommonConfiguration, false);
 				}
 				else if (simulatorName == "Parallel Conjugate Gradient") {
-					hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(conf, true);
+					hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(massSpringCommonConfiguration, true);
 				}
 				else if (simulatorName == "Our Method") {
-					hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(conf);
+					hairDynamicsSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
 				}
 				integrator.addSolver<PositionCommiter>();
 
@@ -175,6 +175,53 @@ int main() {
 				}
 			}
 		}
+}
+
+void validSolverCorretness(int resampleRate=-1) {
+	const float simulationTimeStep = 0.03f; // The time interval for dumping a frame
+	const float integrationTimeStep = 5e-3f; // The time for true integration
+	const int totalSimulationLoop = 250; // The simulation loop
+
+	cout << "Reading the hair..." << endl;
+	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Resources\Models\Feamle 04 Retop\Hair\Curly-50000-p25.hair)";
+	const auto hair = make_shared<Hair>(Hair(hairFilePath).resample(resampleRate >= 1 ? resampleRate : 1));
+
+	cout << "Creating integrator..." << endl;
+	Integrator integrator(hair, Affine3f::Identity());
+
+	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
+	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
+	auto positionCommiterSolver = integrator.addSolver<PositionCommiter>();
+
+	gravitySolver->setMass(&massSpringSolver->getParticleMass());
+
+	// Add visualizer
+	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
+		R"(C:\Users\VividWinPC1\Desktop\HairData)",
+		"TestHair-${F}-Hair.vply",
+		simulationTimeStep,
+		massSpringSolver.get()
+		);
+
+	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
+		R"(C:\Users\VividWinPC1\Desktop\HairData)",
+		"TestHair-${F}-Spring.vply",
+		simulationTimeStep,
+		massSpringSolver.get()
+		);
+
+	for (int i = 0; i < totalSimulationLoop; ++i) {
+		cout << "Simulation Frame " << i + 1 << "..." << endl;
+		for (float currentIntegrationTime = 0.0f; currentIntegrationTime < 0.9995f * simulationTimeStep; currentIntegrationTime += integrationTimeStep)
+			integrator.simulate(integrationTimeStep, Affine3f::Identity());
+	}
+
+	cout << "Simulation end..." << endl;
+}
+
+int main() {
+
+	validSolverCorretness(5432);
 
 	return 0;
 }

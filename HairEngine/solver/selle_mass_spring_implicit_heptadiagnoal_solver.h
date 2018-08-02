@@ -25,14 +25,14 @@ namespace HairEngine {
 			Eigen::Matrix3f *U[3]; // Upper decompostion, each row only has 4 non-zero 3x3 block matrix, but since the diagnoal is always identity matrix, we don't store it
 			Eigen::Vector3f *y, *b;
 
-			size_t capcity; // The number of data that has been allocated
+			int capcity; // The number of data that has been allocated
 
-			IntermediateDataBuffer(size_t capcity): capcity(capcity) {
-				for (size_t i = 0; i < 7; ++i)
+			IntermediateDataBuffer(int capcity): capcity(capcity) {
+				for (int i = 0; i < 7; ++i)
 					A[i] = new Eigen::Matrix3f[capcity];
-				for (size_t i = 0; i < 5; ++i)
+				for (int i = 0; i < 5; ++i)
 					L[i] = new Eigen::Matrix3f[capcity];
-				for (size_t i = 0; i < 3; ++i)
+				for (int i = 0; i < 3; ++i)
 					U[i] = new Eigen::Matrix3f[capcity];
 
 				y = new Eigen::Vector3f[capcity];
@@ -40,11 +40,11 @@ namespace HairEngine {
 			}
 
 			~IntermediateDataBuffer() {
-				for (size_t i = 0; i < 7; ++i)
+				for (int i = 0; i < 7; ++i)
 					delete[] A[i];
-				for (size_t i = 0; i < 5; ++i)
+				for (int i = 0; i < 5; ++i)
 					delete[] L[i];
-				for (size_t i = 0; i < 3; ++i)
+				for (int i = 0; i < 3; ++i)
 					delete[] U[i];
 
 				delete[] y;
@@ -59,13 +59,13 @@ namespace HairEngine {
 
 			// Find the maxiumu particle size
 			maxParticleSize = 0;
-			for (size_t i = 0; i < nstrand; ++i)
+			for (int i = 0; i < nstrand; ++i)
 				maxParticleSize = std::max(maxParticleSize, nparticleInStrand[i]);
 
 			// Allocate the data buffer for each thread
 			nDataBuffer = ParallismUtility::getOpenMPMaxHardwareConcurrency();
 			HairEngine_AllocatorAllocate(dataBuffers, nDataBuffer);
-			for (size_t i = 0; i < nDataBuffer; ++i)
+			for (int i = 0; i < nDataBuffer; ++i)
 				std::allocator<IntermediateDataBuffer>().construct(dataBuffers + i, maxParticleSize);
 		}
 
@@ -86,9 +86,9 @@ namespace HairEngine {
 			ParallismUtility::parallelForWithThreadIndex(0, static_cast<int>(nstrand), [this, pos, vel, outVel, &info, &f1, &f2] (int si, int threadID) {
 				auto & _ = dataBuffers[threadID];
 
-				const size_t particleStartIndex = particleStartIndexForStrand[si];
-				const size_t n = nparticleInStrand[si];
-				const size_t particleEndIndex = particleStartIndex + n;
+				const int particleStartIndex = particleStartIndexForStrand[si];
+				const int n = nparticleInStrand[si];
+				const int particleEndIndex = particleStartIndex + n;
 				const Spring *springStartPtr = springs + springStartIndexForStrand[si];
 				const Spring *springEndPtr = springStartPtr + nspringInStrand[si];
 
@@ -96,8 +96,8 @@ namespace HairEngine {
 				const Eigen::Matrix3f & identity = Eigen::Matrix3f::Identity();
 
 				// Initialize the b and A
-				for (size_t i = particleStartIndex + 1; i != particleEndIndex; ++i) {
-					size_t vi = i - particleStartIndex; // Vector(matrix) index
+				for (int i = particleStartIndex + 1; i != particleEndIndex; ++i) {
+					int vi = i - particleStartIndex; // Vector(matrix) index
 
 					_.A[3][vi] = f2;
 					_.A[0][vi] = _.A[1][vi] = _.A[2][vi] = _.A[4][vi] = _.A[5][vi] = _.A[6][vi] = zero;
@@ -112,8 +112,8 @@ namespace HairEngine {
 
 					const int diff = static_cast<int>(sp->i2) - static_cast<int>(sp->i1);
 
-					const size_t vi1 = sp->i1 - particleStartIndex;
-					const size_t vi2 = sp->i2 - particleStartIndex;
+					const int vi1 = sp->i1 - particleStartIndex;
+					const int vi2 = sp->i2 - particleStartIndex;
 
 					_.b[vi1] += springImpluse;
 					_.b[vi2] -= springImpluse;
@@ -131,7 +131,7 @@ namespace HairEngine {
 				_.A[3][0] = identity;
 
 				// Heptadignoal solver
-				for (size_t i = 0; i < n; ++i) {
+				for (int i = 0; i < n; ++i) {
 					//compute L3
 					_.L[3][i] = i >= 3 ? _.A[0][i] : zero;
 
@@ -200,35 +200,35 @@ namespace HairEngine {
 				}
 
 				// Debug
-				//for (size_t i = 0; i < n; ++i) {
+				//for (int i = 0; i < n; ++i) {
 				//	std::cout << "A=" << std::endl;
-				//	for (size_t k = 0; k < 7; ++k)
+				//	for (int k = 0; k < 7; ++k)
 				//		std::cout << "A[" << k << "][" << i << "]=\n" << _.A[k][i] << std::endl;
 				//}
 
-				//for (size_t i = 0; i < n; ++i) {
+				//for (int i = 0; i < n; ++i) {
 				//	std::cout << "b=" << std::endl;
 				//	std::cout << "b[" << i << "]=" << _.b[i] << std::endl;
 				//}
 
-				//for (size_t i = 0; i < n; ++i) {
+				//for (int i = 0; i < n; ++i) {
 				//	std::cout << "L=" << std::endl;
-				//	for (size_t k = 0; k < 5; ++k)
+				//	for (int k = 0; k < 5; ++k)
 				//		std::cout << "L[" << k << "][" << i << "]=\n" << _.L[k][i] << std::endl;
 				//}
 
-				//for (size_t i = 0; i < n; ++i) {
+				//for (int i = 0; i < n; ++i) {
 				//	std::cout << "U=" << std::endl;
-				//	for (size_t k = 0; k < 3; ++k)
+				//	for (int k = 0; k < 3; ++k)
 				//		std::cout << "U[" << k << "][" << i << "]=\n" << _.U[k][i] << std::endl;
 				//}
 
-				//for (size_t i = 0; i < n; ++i) {
+				//for (int i = 0; i < n; ++i) {
 				//	std::cout << "y=" << std::endl;
 				//	std::cout << "y[" << i << "]=" << _.y[i] << std::endl;
 				//}
 
-				//for (size_t i = 0; i < n; ++i) {
+				//for (int i = 0; i < n; ++i) {
 				//	std::cout << "x=" << std::endl;
 				//	std::cout << "x[" << i << "]=" << x[i] << std::endl;
 				//}
@@ -239,7 +239,7 @@ namespace HairEngine {
 
 	HairEngine_Protected:
 		IntermediateDataBuffer *dataBuffers = nullptr;
-		size_t nDataBuffer = 0;
-		size_t maxParticleSize = 0;
+		int nDataBuffer = 0;
+		int maxParticleSize = 0;
 	};
 }

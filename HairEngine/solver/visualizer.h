@@ -76,7 +76,7 @@ namespace HairEngine {
 		float timestep;
 
 		float currentTime = 0.0f;
-		size_t indexCounter = 1; // We use the counter starts from 1
+		int indexCounter = 1; // We use the counter starts from 1
 
 		std::string getFilepath(const IntegrationInfo & info) {
 			std::stringstream ss;

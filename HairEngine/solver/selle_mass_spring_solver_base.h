@@ -27,19 +27,18 @@ namespace HairEngine {
 
 	HairEngine_Public:
 
-		static constexpr const size_t PARTICLE_TYPE_INDICATOR_BIT = std::numeric_limits<size_t>::max() - (std::numeric_limits<size_t>::max() >> 1);
-
+		static constexpr const int PARTICLE_TYPE_INDICATOR_BIT = std::numeric_limits<int>::min(); 
 		/**
 		 * ParticleToParticle spring definition. i1 and i2 indicates the index in the particleIndices for the particle to 
 		 * connect. Float k indicates the real stiffness, and l0 is the rest length of the spring.
 		 */
 		struct Spring {
-			size_t i1, i2;
+			int i1, i2;
 			float k;
 			float l0;
 			int32_t typeID; // 0 for Stretch, 1 for Bending, 2 for Torsion
 
-			Spring(size_t i1, size_t i2, float k, float l0, int32_t typeID):
+			Spring(int i1, int i2, float k, float l0, int32_t typeID):
 				i1(i1), i2(i2), k(k) , l0(l0), typeID(typeID) {}
 		};
 
@@ -100,20 +99,20 @@ namespace HairEngine {
 			auto particleAllocator = std::allocator<Hair::Particle>();
 
 			virtualParticles = particleAllocator.allocate(hair.nsegment);
-			particleIndices = std::allocator<size_t>().allocate(hair.nsegment + nnormal);
-			nparticleInStrand = std::allocator<size_t>().allocate(nstrand);
-			particleStartIndexForStrand = std::allocator<size_t>().allocate(nstrand);
+			particleIndices = std::allocator<int>().allocate(hair.nsegment + nnormal);
+			nparticleInStrand = std::allocator<int>().allocate(nstrand);
+			particleStartIndexForStrand = std::allocator<int>().allocate(nstrand);
 
 			// Create virtual particles
 			nvirtual = 0;
-			size_t nindex = 0;
+			int nindex = 0;
 
-			for (size_t i = 0; i < hair.nstrand; ++i) {
+			for (int i = 0; i < hair.nstrand; ++i) {
 				auto s = hair.strands + i;
 
 				Eigen::Vector3f dirVec = Eigen::Vector3f::Zero();
 				Eigen::Vector3f prevD = s->segmentInfo.beginPtr->d();
-				size_t nvirtualLocal = 0;
+				int nvirtualLocal = 0;
 
 				for (auto seg = s->segmentInfo.beginPtr; seg != s->segmentInfo.endPtr; ++seg) {
 					// Add the normal particle of seg->p1
@@ -177,7 +176,7 @@ namespace HairEngine {
 			// Compute the stiffness and the pmass
 			auto prevP = p(0);
 			totalLength = 0.0f;
-			for (size_t i = 1; i < nparticle; ++i) {
+			for (int i = 1; i < nparticle; ++i) {
 				auto curP = p(i);
 				if (curP->strandIndex == prevP->strandIndex)
 					totalLength += (curP->pos - prevP->pos).norm();
@@ -198,11 +197,11 @@ namespace HairEngine {
 			HairEngine_AllocatorAllocate(springStartIndexForStrand, nstrand);
 
 			nspring = 0;
-			for (size_t si = 0; si < nstrand; ++si) {
+			for (int si = 0; si < nstrand; ++si) {
 
 				nspringInStrand[si] = nspring;
 
-				for (size_t i = particleStartIndexForStrand[si]; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
+				for (int i = particleStartIndexForStrand[si]; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
 					auto par = p(i);
 					Hair::Particle::Ptr par1 = (i + 1 < nparticle) ? p(i + 1) : nullptr;
 					Hair::Particle::Ptr par2 = (i + 2 < nparticle) ? p(i + 2) : nullptr;
@@ -236,7 +235,7 @@ namespace HairEngine {
 			std::chrono::duration<double> diff = endIntegration - startIntegration;
 			integrationTime = diff.count();
 
-			mapParticle(true, [this, &info](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 				par->vel = vel2[i];
 
 				// Only commit the position of the virtual particles
@@ -247,7 +246,7 @@ namespace HairEngine {
 			//float t_2 = info.t / 2.0f;
 
 			//// Store the position and velocity into buffer
-			//mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
+			//mapParticle(false, [this](Hair::Particle::Ptr par, int i) {
 			//	pos1[i] = par->pos;
 			//	vel1[i] = par->vel;
 			//});
@@ -259,7 +258,7 @@ namespace HairEngine {
 			//// TODO: Strain limiting
 
 			//// Compute middle properties
-			//mapParticle(false, [this, t_2](Hair::Particle::Ptr par, size_t i) {
+			//mapParticle(false, [this, t_2](Hair::Particle::Ptr par, int i) {
 			//	pos2[i] = pos1[i] + vel2[i] * t_2; // pos2 is stored the middle position
 			//});
 
@@ -267,7 +266,7 @@ namespace HairEngine {
 			//integrate(pos2, vel2, vel3, t_2);
 
 			//// Update the final velocity
-			//mapParticle(false, [this](Hair::Particle::Ptr par, size_t i) {
+			//mapParticle(false, [this](Hair::Particle::Ptr par, int i) {
 			//	par->vel += 2.0f * (vel3[i] - vel2[i]);
 			//});
 		}
@@ -291,11 +290,11 @@ namespace HairEngine {
 		}
 
 		/* HairVisualizerVirtualParticleVisualizationInterface Interface */
-		const Hair::Particle& getVirtualParticle(size_t index) const override {
+		const Hair::Particle& getVirtualParticle(int index) const override {
 			return virtualParticles[index];
 		}
 
-		size_t virtualParticleSize() const override {
+		int virtualParticleSize() const override {
 			return nvirtual;
 		}
 
@@ -307,11 +306,11 @@ namespace HairEngine {
 			return integrationTime;
 		}
 
-		size_t getParticleCount() const {
+		int getParticleCount() const {
 			return nparticle;
 		}
 
-		size_t getStrandCount() const {
+		int getStrandCount() const {
 			return nstrand;
 		}
 
@@ -337,29 +336,29 @@ namespace HairEngine {
 
 		float pmass; ///< Particle mass, equals to (mass * nstrand / nparticle)
 
-		size_t nvirtual = 0, nnormal = 0, nparticle = 0; ///< Number of normal particles and virtual particles
+		int nvirtual = 0, nnormal = 0, nparticle = 0; ///< Number of normal particles and virtual particles
 		Hair::Particle *virtualParticles = nullptr; ///< The virtual particle array
 		Hair::Particle *normalParticles = nullptr; ///< The normal particle array
-		size_t nstrand; /// Number of strand
+		int nstrand; /// Number of strand
 
 		/// The index of all particles (including virtual and normal particles).
 		/// We use the highest bit of int to distinguish whether the particle is virtual or not.
 		/// A highests bit with 0 to indicate it is a normal particle while 1 indicating it is a virtual particle.
-		size_t *particleIndices = nullptr;
+		int *particleIndices = nullptr;
 
 		/// An array indicating how many particles in the strand
-		size_t *nparticleInStrand = nullptr;
+		int *nparticleInStrand = nullptr;
 		
 		/// The starting index in "particleIndices" for strand
-		size_t *particleStartIndexForStrand = nullptr;
+		int *particleStartIndexForStrand = nullptr;
 
 		Eigen::Vector3f *pos1 = nullptr, *pos2 = nullptr; ///< Position buffers
 		Eigen::Vector3f *vel1 = nullptr, *vel3 = nullptr, *vel2 = nullptr; ///< Velocity difference buffers
 
 		Spring *springs; ///< The spring array
-		size_t nspring; ///< The size of spring array
-		size_t *nspringInStrand = nullptr; ///< Number of strand in the strand i
-		size_t *springStartIndexForStrand = nullptr; ///< Number of strand in the strand i
+		int nspring; ///< The size of spring array
+		int *nspringInStrand = nullptr; ///< Number of strand in the strand i
+		int *springStartIndexForStrand = nullptr; ///< Number of strand in the strand i
 
 		double integrationTime = 0.0f;
 
@@ -371,8 +370,8 @@ namespace HairEngine {
 		 * @param index The particle index in the particleIndices
 		 * @return True if it is a virual particle
 		 */
-		inline bool isNormalParticle(size_t index) const {
-			return (particleIndices[index] & PARTICLE_TYPE_INDICATOR_BIT) == 0;
+		inline bool isNormalParticle(int index) const {
+			return particleIndices[index] >= 0;
 		}
 
 		/**
@@ -381,7 +380,7 @@ namespace HairEngine {
 		 * @param index The particle index in the particleIndices
 		 * @return True if it is a virtual particle
 		 */
-		inline bool isVirtualParticle(size_t index) const { return !isNormalParticle(index); }
+		inline bool isVirtualParticle(int index) const { return !isNormalParticle(index); }
 
 		/**
 		 * Get the particle pointer based on the index
@@ -389,9 +388,9 @@ namespace HairEngine {
 		 * @param index The index of the particle in the squence of normal particles
 		 * @return The particle pointer
 		 */
-		inline Hair::Particle::Ptr p(size_t index) const {
+		inline Hair::Particle::Ptr p(int index) const {
 			index = particleIndices[index];
-			return ((index & PARTICLE_TYPE_INDICATOR_BIT) == 0) ? (normalParticles + index) : (virtualParticles + (index - PARTICLE_TYPE_INDICATOR_BIT));
+			return index >= 0 ? (normalParticles + index) : (virtualParticles + (index - PARTICLE_TYPE_INDICATOR_BIT));
 		}
 
 		/**
