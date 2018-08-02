@@ -83,7 +83,7 @@ namespace HairEngine {
 			const Eigen::Matrix3f f2 = (pmass + damping * info.t) * Eigen::Matrix3f::Identity();
 
 			// Parallel solve for each strand
-			ParallismUtility::conditionalParallelForWithThreadIndex(false, 0, nstrand, [this, pos, vel, outVel, &info, &f1, &f2] (size_t si, int threadID) {
+			ParallismUtility::parallelForWithThreadIndex(0, static_cast<int>(nstrand), [this, pos, vel, outVel, &info, &f1, &f2] (int si, int threadID) {
 				auto & _ = dataBuffers[threadID];
 
 				const size_t particleStartIndex = particleStartIndexForStrand[si];

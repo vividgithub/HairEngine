@@ -2,6 +2,7 @@
 
 #include <numeric>
 #include <functional>
+#include <chrono>
 
 #include "../solver/integration_info.h"
 #include "../precompiled/precompiled.h"
@@ -223,12 +224,17 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			mapParticle(true, [this, &info](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 				pos1[i] = par->pos;
 				vel1[i] = par->vel;
 			});
 
+			const auto startIntegration = std::chrono::high_resolution_clock::now();
 			integrate(pos1, vel1, vel2, info);
+			const auto endIntegration = std::chrono::high_resolution_clock::now();
+
+			std::chrono::duration<double> diff = endIntegration - startIntegration;
+			integrationTime = diff.count();
 
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, size_t i) {
 				par->vel = vel2[i];
@@ -297,6 +303,18 @@ namespace HairEngine {
 			return pmass;
 		}
 
+		const double & getIntegrationTime() const {
+			return integrationTime;
+		}
+
+		size_t getParticleCount() const {
+			return nparticle;
+		}
+
+		size_t getStrandCount() const {
+			return nstrand;
+		}
+
 	HairEngine_Protected:
 		float stretchStiffness;
 		float bendingStiffness;
@@ -343,6 +361,8 @@ namespace HairEngine {
 		size_t *nspringInStrand = nullptr; ///< Number of strand in the strand i
 		size_t *springStartIndexForStrand = nullptr; ///< Number of strand in the strand i
 
+		double integrationTime = 0.0f;
+
 		/* Herlper Function */
 
 		/**
@@ -382,9 +402,9 @@ namespace HairEngine {
 		 * @param mapper A callable function like object, we will pass the pointer and its index in the particleIndices to 
 		 * the modifier.
 		 */
-		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr, size_t)> & mapper) {
-			const auto & block = [this, &mapper](size_t i) { mapper(p(i), i); };
-			ParallismUtility::conditionalParallelFor(parallel, 0, nparticle, block);
+		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr, int)> & mapper) {
+			const auto & block = [this, &mapper](int i) { mapper(p(i), i); };
+			ParallismUtility::conditionalParallelFor(parallel, 0, static_cast<int>(nparticle), block);
 		}
 
 		/**
@@ -394,8 +414,8 @@ namespace HairEngine {
 		 * @param parallel Enable parallism for mapping. Ohterwise we will do it sequentially
 		 * @param mapper A callbale function which accepts a strand index, do some stuff with the index
 		 */
-		void mapStrand(bool parallel, const std::function<void(size_t)> & mapper) {
-			ParallismUtility::conditionalParallelFor(parallel, 0, nstrand, mapper);
+		void mapStrand(bool parallel, const std::function<void(int)> & mapper) {
+			ParallismUtility::conditionalParallelFor(parallel, 0, static_cast<int>(nstrand), mapper);
 		}
 
 		/**

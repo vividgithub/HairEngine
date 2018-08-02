@@ -325,6 +325,16 @@ namespace HairEngine {
 				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strands[i].particleInfo.nparticle));
 		}
 
+		/**
+		* Write the hair geometry to .hair file format. We only the current position to the .hair file format.
+		*
+		* @param filePath The file path for the .hair file format
+		*/
+		void writeToFile(const std::string & filePath) const {
+			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
+			stream(fout);
+		}
+
 	HairEngine_Protected:
 
 		/**
@@ -460,14 +470,6 @@ namespace HairEngine {
 			init(particlePositions.begin(), strandSizes.begin(), strandSizes.end());
 		}
 
-		/**
-		 * Write the hair geometry to .hair file format. We only the current position to the .hair file format.
-		 *
-		 * @param filePath The file path for the .hair file format
-		 */
-		void writeToFile(const std::string & filePath) const {
-			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
-			stream(fout);
-		}
+
 	};
 }

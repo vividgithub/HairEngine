@@ -23,14 +23,14 @@ namespace HairEngine {
 		 * @param end The end index (Make sure end > start)
 		 * @block The block function which accepts an index for parallel executing
 		 */
-		static inline void parallelFor(size_t start, size_t end, const std::function<void(size_t)> & block) {
+		static inline void parallelFor(int start, int end, const std::function<void(int)> & block) {
 #ifdef HAIRENGINE_ENABLE_OPENMP
 			#pragma omp parallel for
-			for (size_t i = start; i != end; ++i)
+			for (int i = start; i < end; ++i)
 				block(i);
 #else
 			// If the OpenMp is not included, we will do it sequentially
-			for (size_t i = start; i != end; ++i)
+			for (int i = start; i != end; ++i)
 				block(i);
 #endif
 		}
@@ -55,7 +55,7 @@ namespace HairEngine {
 		 * @param end The end index for the loop
 		 * @param block The executing block function which accepts a loop index i and an threadID, which indicating the thread number
 		 */
-		static inline void parallelForWithThreadIndex(size_t start, size_t end, const std::function<void(size_t, int)> & block) {
+		static inline void parallelForWithThreadIndex(int start, int end, const std::function<void(int, int)> & block) {
 #ifdef HAIRENGINE_ENABLE_OPENMP
 			static unsigned maxThreadNumber = 0;
 
@@ -66,13 +66,13 @@ namespace HairEngine {
 
 			#pragma omp parallel num_threads(maxThreadNumber)
 			{
-				int threadID = omp_get_thread_num();
+				const int threadID = omp_get_thread_num();
 				#pragma omp for
-				for (size_t i = start; i != end; ++i)
+				for (int i = start; i < end; ++i)
 					block(i, threadID);
 			}
 #else
-			for (size_t i = start; i < end; ++i)
+			for (int i = start; i < end; ++i)
 				block(i, 0);
 #endif
 		}
@@ -86,11 +86,11 @@ namespace HairEngine {
 		 * @param end The end index of the for loop
 		 * @param block The executing block function
 		 */
-		static inline void conditionalParallelForWithThreadIndex(bool parallel, size_t start, size_t end, const std::function<void(size_t, int)> & block) {
+		static inline void conditionalParallelForWithThreadIndex(bool parallel, int start, int end, const std::function<void(int, int)> & block) {
 			if (parallel)
 				parallelForWithThreadIndex(start, end, block);
 			else {
-				for (size_t i = start; i != end; ++i)
+				for (int i = start; i != end; ++i)
 					block(i, 0); // We use thread 0 
 			}
 		}
@@ -106,11 +106,11 @@ namespace HairEngine {
 		 * @param end The end index
 		 * @block block The block function for executing
 		 */
-		static inline void conditionalParallelFor(bool parallel, size_t start, size_t end, const std::function<void(size_t)> & block) {
+		static inline void conditionalParallelFor(bool parallel, int start, int end, const std::function<void(int)> & block) {
 			if (parallel)
 				parallelFor(start, end, block);
 			else {
-				for (size_t i = start; i != end; ++i)
+				for (int i = start; i != end; ++i)
 					block(i);
 			}
 		}

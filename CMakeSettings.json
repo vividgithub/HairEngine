@@ -15,13 +15,13 @@
         {
             "name": "x86-Release",
             "generator": "Ninja",
-            "configurationType": "RelWithDebInfo",
+            "configurationType": "Release",
             "inheritEnvironments": [ "msvc_x86" ],
             "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
             "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
             "cmakeCommandArgs": "-DHAIRENGINE_ENABLE_VPBRT=ON -DHAIRENGINE_ENABLE_OPENMP=ON",
             "buildCommandArgs": "-v",
-            "ctestCommandArgs": ""
+            "ctestCommandArgs": "" 
         },
         {
             "name": "x64-Debug",
@@ -37,7 +37,7 @@
         {
             "name": "x64-Release",
             "generator": "Ninja",
-            "configurationType": "RelWithDebInfo",
+            "configurationType": "Release",
             "inheritEnvironments": [ "msvc_x64_x64" ],
             "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
             "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",

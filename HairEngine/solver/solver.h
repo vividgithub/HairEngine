@@ -70,11 +70,11 @@ namespace HairEngine {
 		 */
 		void mapParticle(bool parallel, const std::function<void(Hair::Particle::Ptr)> &mapper) {
 
-			const auto & block = [&mapper, this] (size_t i) {
+			const auto & block = [&mapper, this] (int i) {
 				mapper(hair->particles + i);
 			};
 
-			ParallismUtility::conditionalParallelFor(parallel, 0, hair->nparticle, block);
+			ParallismUtility::conditionalParallelFor(parallel, 0, static_cast<int>(hair->nparticle), block);
 		}
 
 		/**
@@ -86,11 +86,11 @@ namespace HairEngine {
 		 * @param mapper The function for mapping
 		 */
 		void mapStrand(bool parallel, const std::function<void(Hair::Strand::Ptr)> &mapper) {
-			const auto & block = [&mapper, this] (size_t i) {
+			const auto & block = [&mapper, this] (int i) {
 				mapper(hair->strands + i);
 			};
 
-			ParallismUtility::conditionalParallelFor(parallel, 0, hair->nstrand, block);
+			ParallismUtility::conditionalParallelFor(parallel, 0, static_cast<int>(hair->nstrand), block);
 		}
 	};
 }
