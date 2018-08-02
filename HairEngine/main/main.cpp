@@ -37,7 +37,7 @@ SelleMassSpringSolverBase::Configuration massSpringCommonConfiguration(
 	10000.0f,
 	10000.0f,
 	1000.0f,
-	6.0f,
+	15.0f,
 	true,
 	4.0f,
 	25.0f
