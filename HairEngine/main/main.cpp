@@ -2,6 +2,8 @@
 #include <sstream>
 #include <fstream>
 
+#include "Eigen/StdVector"
+
 #include "../geo/hair.h"
 #include "../solver/integrator.h"
 #include "../solver/force_applier.h"
@@ -28,6 +30,7 @@ struct TimingSummary {
 int main() {
 	using namespace HairEngine;
 	using namespace std;
+	using namespace Eigen;
 	using std::cout;
 
 	float integrationStep = 5e-3f;
@@ -49,12 +52,53 @@ int main() {
 
 	vector<TimingSummary> summaries;
 
-	cout << "OpenMP Testing" << endl;
+	cout << "Check whether enable OpenMP" << endl;
 
 	#pragma omp parallel num_threads(ParallismUtility::getOpenMPMaxHardwareConcurrency())
 	{
-		cout << "Thread ID = " << omp_get_thread_num();
+		cout << "Thread ID = " << omp_get_thread_num() << endl;
 	}
+
+	cout << "Check whether enable Eigen vectorization" << endl;
+#ifdef EIGEN_VECTORIZE
+	cout << "Eigen vectorization enabled" << endl;
+#else
+	cout << "Eigen vectorization is not enabled" << endl;
+#endif
+
+	// Speed testing for Matrix and Vector multiplication
+	vector<Matrix3f> m3s;
+	vector<Matrix4f, aligned_allocator<Matrix4f>> m4s;
+	vector<Vector3f> v3s;
+	vector<Vector4f, aligned_allocator<Vector4f>> v4s;
+	for (int i = 0; i < 1000; ++i) {
+		m3s.emplace_back(Matrix3f::Random());
+		m4s.emplace_back(Matrix4f::Random());
+		v3s.emplace_back(Vector3f::Random());
+		v4s.emplace_back(Vector4f::Random());
+	}
+
+	// Speed testing for Matrix3f.Vector3f
+	auto startTime = chrono::high_resolution_clock::now();
+	Vector3f ret1 = Vector3f::Zero();
+	for (const auto & m3 : m3s)
+		for (const auto & v3 : v3s)
+			ret1 += m3 * v3;
+	auto endTime = chrono::high_resolution_clock::now();
+	std::cout << "Timing for Matrix3f.Vector3f is " << (endTime - startTime).count() << endl;
+
+	startTime = chrono::high_resolution_clock::now();
+	Vector4f ret2 = Vector4f::Zero();
+	for (const auto & m4 : m4s)
+		for (const auto & v4 : v4s)
+			ret2 += m4 * v4;
+	endTime = chrono::high_resolution_clock::now();
+	std::cout << "Timing for Matrix4f.Vector4f is " << (endTime - startTime).count() << endl;
+
+	char c;
+	cin >> c;
+
+	return 0;
 
 	// Write to summary file
 	fstream fout(R"(C:\Users\VividWinPC1\Desktop\HairTimeSummaryNew.csv)", ios::out);
