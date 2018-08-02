@@ -45,12 +45,12 @@ namespace HairEngine {
 				}
 
 				// Compute the new velocity
-				for (size_t i = particleStartIndexForStrand[si] + 1; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
+				for (int i = particleStartIndexForStrand[si] + 1; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
 					outVel[i] = vel[i] + im[i] * f1;
 				}
 
 				// The hair root velocity
-				const size_t & ri = particleStartIndexForStrand[si]; // Strand root index
+				const int & ri = particleStartIndexForStrand[si]; // Strand root index
 				auto pr = p(ri);
 
 				// Compute the hair root velocity

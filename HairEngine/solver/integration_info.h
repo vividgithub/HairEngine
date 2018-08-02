@@ -38,14 +38,14 @@ namespace HairEngine {
 		};
 
 		union {
-			size_t f; ///< Frame number, short definition
-			size_t frameNumber;  ///< Frame number, long definition
+			int f; ///< Frame number, short definition
+			int frameNumber;  ///< Frame number, long definition
 		};
 
 		/**
 		 * Constructor
 		 */
-		IntegrationInfo(float simulationTime, const Eigen::Affine3f &transform, const Eigen::Affine3f &previousTransform, size_t frameNumber):
+		IntegrationInfo(float simulationTime, const Eigen::Affine3f &transform, const Eigen::Affine3f &previousTransform, int frameNumber):
 			t(simulationTime), tr(transform), ptr(previousTransform), f(frameNumber) {}
 
 		IntegrationInfo(const IntegrationInfo & rhs) {
