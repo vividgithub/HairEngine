@@ -221,7 +221,7 @@ void validSolverCorretness(int resampleRate=-1) {
 
 int main() {
 
-	validSolverCorretness(5432);
+	validSolverCorretness(1234);
 
 	return 0;
 }

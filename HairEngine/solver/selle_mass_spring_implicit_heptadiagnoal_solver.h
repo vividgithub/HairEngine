@@ -20,23 +20,24 @@ namespace HairEngine {
 		 * specific hair geometry.
 		 */
 		struct IntermediateDataBuffer {
-			Eigen::Matrix3f *A[7]; // The input matrix of A.x = b, each row only has 7 non-zero 3x3 block matrix
-			Eigen::Matrix3f *L[5]; // Lower decomposition, L[4] is the inverse of L[0], each row only has 4 non-zero 3x3 block matrix
-			Eigen::Matrix3f *U[3]; // Upper decompostion, each row only has 4 non-zero 3x3 block matrix, but since the diagnoal is always identity matrix, we don't store it
-			Eigen::Vector3f *y, *b;
+			Eigen::Matrix4f *A[7]; // The input matrix of A.x = b, each row only has 7 non-zero 3x3 block matrix
+			Eigen::Matrix4f *L[5]; // Lower decomposition, L[4] is the inverse of L[0], each row only has 4 non-zero 3x3 block matrix
+			Eigen::Matrix4f *U[3]; // Upper decompostion, each row only has 4 non-zero 3x3 block matrix, but since the diagnoal is always identity matrix, we don't store it
+			Eigen::Vector4f *y, *b, *x;
 
 			int capcity; // The number of data that has been allocated
 
 			IntermediateDataBuffer(int capcity): capcity(capcity) {
 				for (int i = 0; i < 7; ++i)
-					A[i] = new Eigen::Matrix3f[capcity];
+					A[i] = new Eigen::Matrix4f[capcity];
 				for (int i = 0; i < 5; ++i)
-					L[i] = new Eigen::Matrix3f[capcity];
+					L[i] = new Eigen::Matrix4f[capcity];
 				for (int i = 0; i < 3; ++i)
-					U[i] = new Eigen::Matrix3f[capcity];
+					U[i] = new Eigen::Matrix4f[capcity];
 
-				y = new Eigen::Vector3f[capcity];
-				b = new Eigen::Vector3f[capcity];
+				y = new Eigen::Vector4f[capcity];
+				b = new Eigen::Vector4f[capcity];
+				x = new Eigen::Vector4f[capcity];
 			}
 
 			~IntermediateDataBuffer() {
@@ -49,6 +50,7 @@ namespace HairEngine {
 
 				delete[] y;
 				delete[] b;
+				delete[] x;
 			}
 		};
 
@@ -76,11 +78,11 @@ namespace HairEngine {
 			SelleMassSpringSolverBase::tearDown();
 		}
 
-		void integrate(Eigen::Vector3f* pos, Eigen::Vector3f* vel, Eigen::Vector3f* outVel, const IntegrationInfo& info) override {\
+		void integrate(Eigen::Vector3f* pos, Eigen::Vector3f* vel, Eigen::Vector3f* outVel, const IntegrationInfo& info) override {
 
 			// Pre computed data
 			const float f1 = info.t * info.t;
-			const Eigen::Matrix3f f2 = (pmass + damping * info.t) * Eigen::Matrix3f::Identity();
+			const Eigen::Matrix4f f2 = (pmass + damping * info.t) * Eigen::Matrix4f::Identity();
 
 			// Parallel solve for each strand
 			ParallismUtility::parallelForWithThreadIndex(0, static_cast<int>(nstrand), [this, pos, vel, outVel, &info, &f1, &f2] (int si, int threadID) {
@@ -92,8 +94,8 @@ namespace HairEngine {
 				const Spring *springStartPtr = springs + springStartIndexForStrand[si];
 				const Spring *springEndPtr = springStartPtr + nspringInStrand[si];
 
-				const Eigen::Matrix3f & zero = Eigen::Matrix3f::Zero();
-				const Eigen::Matrix3f & identity = Eigen::Matrix3f::Identity();
+				const Eigen::Matrix4f & zero = Eigen::Matrix4f::Zero();
+				const Eigen::Matrix4f & identity = Eigen::Matrix4f::Identity();
 
 				// Initialize the b and A
 				for (int i = particleStartIndex + 1; i != particleEndIndex; ++i) {
@@ -101,14 +103,16 @@ namespace HairEngine {
 
 					_.A[3][vi] = f2;
 					_.A[0][vi] = _.A[1][vi] = _.A[2][vi] = _.A[4][vi] = _.A[5][vi] = _.A[6][vi] = zero;
-					_.b[vi] = pmass * vel[i] + p(i)->impulse * info.t;
+
+					_.b[vi].segment<3>(0) = pmass * vel[i] + p(i)->impulse * info.t;
+					_.b[vi](3) = 0.0f;  // Always set the last vector to 0
 				}
 
 				// Spring forces and direction matrix 
 				for (auto sp = springStartPtr; sp != springEndPtr; ++sp) {
-					Eigen::Matrix3f dm;
-					const Eigen::Vector3f springImpluse = info.t * MathUtility::massSpringForce(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
-					const Eigen::Matrix3f vm = (f1 * sp->k) * dm; //Velocity matrix
+					Eigen::Matrix4f dm;
+					const Eigen::Vector4f springImpluse = info.t * MathUtility::massSpringForce4f(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
+					dm *= f1 * sp->k;
 
 					const int diff = static_cast<int>(sp->i2) - static_cast<int>(sp->i1);
 
@@ -118,15 +122,22 @@ namespace HairEngine {
 					_.b[vi1] += springImpluse;
 					_.b[vi2] -= springImpluse;
 
-					_.A[3][vi1] += vm;
-					_.A[3][vi2] += vm;
-					_.A[3 + diff][vi1] = -vm;
-					_.A[3 - diff][vi2] = -vm;
+					_.A[3][vi1] += dm;
+					_.A[3][vi2] += dm;
+					_.A[3 + diff][vi1] = -dm;
+					_.A[3 - diff][vi2] = -dm;
 				}
 
 				// Initialize the b and A of the strand root
 				auto rootPar = p(particleStartIndex);
-				_.b[0] = (info.transform * rootPar->restPos - info.previousTransform * rootPar->restPos) / info.t;
+
+				Eigen::Vector4f rootParRestPos;
+				rootParRestPos.segment<3>(0) = rootPar->restPos;
+				rootParRestPos(3) = 0.0f;
+
+				Eigen::Matrix4f deltaTransform = info.transform.matrix() - info.previousTransform.matrix();
+
+				_.b[0] = (deltaTransform * rootParRestPos) / info.t;
 				_.A[0][0] = _.A[1][0] = _.A[2][0] = _.A[4][0] = _.A[5][0] = _.A[6][0] = zero;
 				_.A[3][0] = identity;
 
@@ -188,52 +199,19 @@ namespace HairEngine {
 				}
 
 				// Compute the final velocity
-				auto x = outVel + particleStartIndex;
 				for (int i = n - 1; i >= 0; --i) {
-					x[i] = _.y[i];
+					_.x[i] = _.y[i];
 					if (i + 1 < n)
-						x[i] -= _.U[0][i] * x[i + 1];
+						_.x[i] -= _.U[0][i] * _.x[i + 1];
 					if (i + 2 < n)
-						x[i] -= _.U[1][i] * x[i + 2];
+						_.x[i] -= _.U[1][i] * _.x[i + 2];
 					if (i + 3 < n)
-						x[i] -= _.U[2][i] * x[i + 3];
+						_.x[i] -= _.U[2][i] * _.x[i + 3];
 				}
 
-				// Debug
-				//for (int i = 0; i < n; ++i) {
-				//	std::cout << "A=" << std::endl;
-				//	for (int k = 0; k < 7; ++k)
-				//		std::cout << "A[" << k << "][" << i << "]=\n" << _.A[k][i] << std::endl;
-				//}
-
-				//for (int i = 0; i < n; ++i) {
-				//	std::cout << "b=" << std::endl;
-				//	std::cout << "b[" << i << "]=" << _.b[i] << std::endl;
-				//}
-
-				//for (int i = 0; i < n; ++i) {
-				//	std::cout << "L=" << std::endl;
-				//	for (int k = 0; k < 5; ++k)
-				//		std::cout << "L[" << k << "][" << i << "]=\n" << _.L[k][i] << std::endl;
-				//}
-
-				//for (int i = 0; i < n; ++i) {
-				//	std::cout << "U=" << std::endl;
-				//	for (int k = 0; k < 3; ++k)
-				//		std::cout << "U[" << k << "][" << i << "]=\n" << _.U[k][i] << std::endl;
-				//}
-
-				//for (int i = 0; i < n; ++i) {
-				//	std::cout << "y=" << std::endl;
-				//	std::cout << "y[" << i << "]=" << _.y[i] << std::endl;
-				//}
-
-				//for (int i = 0; i < n; ++i) {
-				//	std::cout << "x=" << std::endl;
-				//	std::cout << "x[" << i << "]=" << x[i] << std::endl;
-				//}
-
-				//std::cout << "-----------------------" << std::endl;
+				// Assign back
+				for (int i = 0; i < n; ++i)
+					outVel[particleStartIndex + i] = _.x[i].segment<3>(0);
 			});
 		}
 
