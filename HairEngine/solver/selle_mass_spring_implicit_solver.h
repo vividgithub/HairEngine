@@ -34,7 +34,7 @@ namespace HairEngine {
 			const float f2 = pmass + damping * info.t;
 
 			if (enableParallism) {
-				mapStrand(true, [this, &info, f1, f2, vel, pos, outVel](size_t si) {
+				mapStrand(true, [this, &info, f1, f2, vel, pos, outVel](int si) {
 					_integrate(pos, vel, outVel, info, f1, f2, static_cast<int>(si));
 				});
 			}
@@ -57,9 +57,9 @@ namespace HairEngine {
 			 * multiplication into b.
 			 */
 
-			size_t n; // Number of particles to solve (equals to nparticle - nstrand, since we know the eact velocity of strand root)
-			size_t particleStartIndex; // The start index of solving particles
-			size_t particleEndIndex; // The end index of the sovling particles
+			int n; // Number of particles to solve (equals to nparticle - nstrand, since we know the eact velocity of strand root)
+			int particleStartIndex; // The start index of solving particles
+			int particleEndIndex; // The end index of the sovling particles
 			Spring *springStartPtr, *springEndPtr; // The start and end spring pointer
 
 			if (si >= 0) {
@@ -84,13 +84,13 @@ namespace HairEngine {
 			std::vector<Eigen::Triplet<float>> triplets;
 
 			// Helper function
-			const auto & getVectorIndex = [this, particleStartIndex, si](size_t i) -> int {
+			const auto & getVectorIndex = [this, particleStartIndex, si](int i) -> int {
 				int relativeIndex = static_cast<int>(i - particleStartIndex);
 				relativeIndex -= static_cast<int>((si >= 0) ? 1 : (p(i)->strandIndex + 1)); // Minus the number of strand root particle before it
 				return 3 * relativeIndex; // Reindex to MatrixXf and VectorXf
 			};
 
-			const auto & isStrandRoot = [this](size_t i) -> bool {
+			const auto & isStrandRoot = [this](int i) -> bool {
 				return isNormalParticle(i) && p(i)->localIndex == 0;
 			};
 
@@ -152,7 +152,7 @@ namespace HairEngine {
 
 			// Conjugate solver
 			A.setFromTriplets(triplets.begin(), triplets.end());
-			Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> cg;
+			Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower | Eigen::Upper> cg;
 			cg.compute(A);
 			Eigen::VectorXf x = cg.solveWithGuess(b, b);
 

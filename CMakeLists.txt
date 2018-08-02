@@ -8,6 +8,11 @@ project ("HairEngine")
 # Expand the cmake module path
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMake")
 
+include(OptimizeForArchitecture)
+
+# Optimize for architecture, we use to enable and Eigen vectorization
+OptimizeForArchitecture()
+
 # Set the root directory and the src directory
 set(HAIRENGINE_ROOT_DIR ${PROJECT_SOURCE_DIR})  # Root directory
 set(HAIRENGINE_SOURCE_DIR "${PROJECT_SOURCE_DIR}/HairEngine")  # Source code directory
@@ -45,8 +50,8 @@ if (HAIRENGINE_ENABLE_VPBRT)
 endif()
 if (HAIRENGINE_ENABLE_OPENMP)
 	find_package(OpenMP REQUIRED)
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS})
-	message(STATUS "OpenMp added with flags: " ${OpenMP_CXX_FLAGS})
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}") 
+	message(STATUS "OpenMp added with flags: " ${CMAKE_CXX_FLAGS} " with OpenMP Flags: " ${OpenMP_CXX_FLAGS})
 	set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_OPENMP")
 endif()
 

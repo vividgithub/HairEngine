@@ -56,10 +56,10 @@ namespace HairEngine {
 			Eigen::Vector3f vel; ///< The velocity of current frame
 			Eigen::Vector3f impulse; ///< The impulse of current frame
 
-			size_t localIndex; ///< Local index for the particle in the strand
-			size_t globalIndex; ///< Global index for the particle in the whole hair geometry
+			int localIndex; ///< Local index for the particle in the strand
+			int globalIndex; ///< Global index for the particle in the whole hair geometry
 
-			size_t strandIndex; ///< The associated strand's index in the hair geometry
+			int strandIndex; ///< The associated strand's index in the hair geometry
 
 			/**
 			 * Predict the particles' position after time t
@@ -83,7 +83,7 @@ namespace HairEngine {
 			 * @param strandIndex The strand index of which the particle is in
 			 */
 			Particle(const Eigen::Vector3f &restPos, const Eigen::Vector3f &pos, const Eigen::Vector3f &vel,
-			         const Eigen::Vector3f &impulse, size_t localIndex, size_t globalIndex, size_t strandIndex)
+			         const Eigen::Vector3f &impulse, int localIndex, int globalIndex, int strandIndex)
 					: restPos(restPos), pos(pos), vel(vel), impulse(impulse), localIndex(localIndex),
 					  globalIndex(globalIndex), strandIndex(strandIndex) {}
 		};
@@ -100,8 +100,8 @@ namespace HairEngine {
 
 			Particle::Ptr p1, p2; ///< Two adjacent particle pointers
 
-			size_t localIndex; ///< Local index for the segment in the strand
-			size_t globalIndex; ///< Global index for the segment in the whole hair geometry
+			int localIndex; ///< Local index for the segment in the strand
+			int globalIndex; ///< Global index for the segment in the whole hair geometry
 
 			/**
 			 * Current direction d = p2->pos - p1->pos
@@ -120,7 +120,7 @@ namespace HairEngine {
 			 * @param localIndex The local index of the segment in the strand
 			 * @param globalIndex The global index of the segment in the strand
 			 */
-			Segment(Particle *p1, Particle *p2, size_t localIndex, size_t globalIndex) :
+			Segment(Particle *p1, Particle *p2, int localIndex, int globalIndex) :
 					p1(p1), p2(p2),
 					localIndex(localIndex),
 					globalIndex(globalIndex) {}
@@ -137,17 +137,17 @@ namespace HairEngine {
 			struct {
 				Particle *beginPtr;
 				Particle *endPtr;
-				size_t nparticle;
+				int nparticle;
 			} particleInfo;
 
 			struct
 			{
 				Segment *beginPtr;
 				Segment *endPtr;
-				size_t nsegment;
+				int nsegment;
 			} segmentInfo;
 
-			size_t index; ///< The index in the global hair geometry
+			int index; ///< The index in the global hair geometry
 			Hair *hairPtr; ///< Point to the hair geometry that it belongs to
 
 			/**
@@ -156,26 +156,26 @@ namespace HairEngine {
 			 *
 			 * @param index The index of strand
 			 */
-			Strand(size_t index, Hair* hairPtr, Particle *particleBeginPtr, Particle *particleEndPtr, Segment *segmentBeginPtr, Segment *segmentEndPtr): 
+			Strand(int index, Hair* hairPtr, Particle *particleBeginPtr, Particle *particleEndPtr, Segment *segmentBeginPtr, Segment *segmentEndPtr): 
 				index(index), hairPtr(hairPtr),
 				particleInfo{ particleBeginPtr, particleEndPtr, 0 }, 
 				segmentInfo{ segmentBeginPtr, segmentEndPtr, 0 } {
 
-				particleInfo.nparticle = static_cast<size_t>(particleEndPtr - particleBeginPtr);
-				segmentInfo.nsegment = static_cast<size_t>(segmentEndPtr - segmentBeginPtr);
+				particleInfo.nparticle = static_cast<int>(particleEndPtr - particleBeginPtr);
+				segmentInfo.nsegment = static_cast<int>(segmentEndPtr - segmentBeginPtr);
 			}
 		};
 
 	HairEngine_Protected:
 
 		Particle *particles = nullptr; ///< All particles in the hair geometry
-		size_t nparticle = 0; ///< Number of particles
+		int nparticle = 0; ///< Number of particles
 
 		Segment *segments = nullptr; ///< All segments in the hair geometry
-		size_t nsegment = 0; ///< Number of segments
+		int nsegment = 0; ///< Number of segments
 
 		Strand *strands = nullptr; ///< All strands in the hair geometry
-		size_t nstrand = 0; ///< Number of strands
+		int nstrand = 0; ///< Number of strands
 
 	HairEngine_Public:
 
@@ -281,7 +281,7 @@ namespace HairEngine {
 		template <class IndexIterator>
 		Hair resample(const IndexIterator & begin, const IndexIterator & end) const {
 			std::vector<Eigen::Vector3f> positions;
-			std::vector<size_t> strandSizes;
+			std::vector<int> strandSizes;
 
 			for (auto it = begin; it != end; ++it) {
 				const Strand & strand = strands[*it];
@@ -301,9 +301,9 @@ namespace HairEngine {
 		 * @param sampleRate The rate for sampling
 		 * @return Resampled hair
 		 */
-		Hair resample(const size_t sampleRate) {
-			std::vector<size_t> sampledStrandIndices;
-			for (size_t i = 0; i < nstrand; i += sampleRate) {
+		Hair resample(const int sampleRate) {
+			std::vector<int> sampledStrandIndices;
+			for (int i = 0; i < nstrand; i += sampleRate) {
 				sampledStrandIndices.push_back(i);
 			}
 
@@ -317,12 +317,22 @@ namespace HairEngine {
 		*/
 		void stream(std::ostream & os) const {
 			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nparticle));
-			for (size_t i = 0; i < nparticle; ++i)
+			for (int i = 0; i < nparticle; ++i)
 				FileUtility::binaryWriteVector3f(os, particles[i].pos);
 
 			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nstrand));
-			for (size_t i = 0; i < nstrand; ++i)
+			for (int i = 0; i < nstrand; ++i)
 				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strands[i].particleInfo.nparticle));
+		}
+
+		/**
+		* Write the hair geometry to .hair file format. We only the current position to the .hair file format.
+		*
+		* @param filePath The file path for the .hair file format
+		*/
+		void writeToFile(const std::string & filePath) const {
+			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
+			stream(fout);
 		}
 
 	HairEngine_Protected:
@@ -333,7 +343,7 @@ namespace HairEngine {
 		 * particles is in the strand.
 		 *
 		 * @tparam RestPositionIterator (*RestPositionIterator) should return a Eigen::Vector3f type.
-		 * @tparam StrandSizeIterator (*StrandSizeIterator) should return a size_t or other type that could cast to it.
+		 * @tparam StrandSizeIterator (*StrandSizeIterator) should return a int or other type that could cast to it.
 		 * @param posBegin The begin of the position iterator. We do not use the posEnd since we could get the total
 		 * particle count from the strand size iterator.
 		 * @param strandSizeBegin The begin of the strand size iterator.
@@ -372,7 +382,7 @@ namespace HairEngine {
 			// Iterate over all the strands
 			for (auto strandSizeIt = strandSizeBegin; strandSizeIt != strandSizeEnd; ++strandSizeIt) {
 
-				const size_t nparticleInStrand = *strandSizeIt;
+				const int nparticleInStrand = *strandSizeIt;
 
 				// Create a strand
 				auto strandPtr = strands + nstrand;
@@ -385,7 +395,7 @@ namespace HairEngine {
 					segments + nsegment + nparticleInStrand - 1
 				);
 
-				for (size_t i = 0; i < nparticleInStrand; ++i) {
+				for (int i = 0; i < nparticleInStrand; ++i) {
 					// Initialize the particle
 					Eigen::Vector3f pos = affine * (*posIt);
 
@@ -460,14 +470,6 @@ namespace HairEngine {
 			init(particlePositions.begin(), strandSizes.begin(), strandSizes.end());
 		}
 
-		/**
-		 * Write the hair geometry to .hair file format. We only the current position to the .hair file format.
-		 *
-		 * @param filePath The file path for the .hair file format
-		 */
-		void writeToFile(const std::string & filePath) const {
-			std::ofstream fout(filePath, std::ios::out | std::ios::binary);
-			stream(fout);
-		}
+
 	};
 }

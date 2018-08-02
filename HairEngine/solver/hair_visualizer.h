@@ -16,8 +16,8 @@ namespace HairEngine {
 	 */
 	class HairVisualizerVirtualParticleVisualizationInterface {
 	HairEngine_Public:
-		virtual size_t virtualParticleSize() const = 0;
-		virtual const Hair::Particle & getVirtualParticle(size_t index) const = 0;
+		virtual int virtualParticleSize() const = 0;
+		virtual const Hair::Particle & getVirtualParticle(int index) const = 0;
 	};
 
 	/**
@@ -90,8 +90,8 @@ namespace HairEngine {
 
 			// Write the additional virtual particle
 			if (vpi) {
-				size_t nvirtual = vpi->virtualParticleSize();
-				for (size_t i = 0; i < nvirtual; ++i) {
+				int nvirtual = vpi->virtualParticleSize();
+				for (int i = 0; i < nvirtual; ++i) {
 					const auto & p = vpi->getVirtualParticle(i);
 					VPly::writePoint(os,
 						EigenUtility::toVPlyVector3f(p.pos),

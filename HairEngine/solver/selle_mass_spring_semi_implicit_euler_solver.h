@@ -29,11 +29,11 @@ namespace HairEngine {
 			float f1 = info.t / pmass;
 
 			// Initialize the impluse
-			mapParticle(true, [this, vel](Hair::Particle::Ptr par, size_t i) {
+			mapParticle(true, [this, vel](Hair::Particle::Ptr par, int i) {
 				im[i] = par->impulse - damping * vel[i];
 			});
 
-			mapStrand(true, [this, f1, pos, vel, outVel, &info] (size_t si) {
+			mapStrand(true, [this, f1, pos, vel, outVel, &info] (int si) {
 				// Compute the spring force
 				for (auto spIt = springs + springStartIndexForStrand[si]; 
 					spIt != springs + springStartIndexForStrand[si] + nspringInStrand[si]; 
@@ -45,12 +45,12 @@ namespace HairEngine {
 				}
 
 				// Compute the new velocity
-				for (size_t i = particleStartIndexForStrand[si] + 1; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
+				for (int i = particleStartIndexForStrand[si] + 1; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
 					outVel[i] = vel[i] + im[i] * f1;
 				}
 
 				// The hair root velocity
-				const size_t & ri = particleStartIndexForStrand[si]; // Strand root index
+				const int & ri = particleStartIndexForStrand[si]; // Strand root index
 				auto pr = p(ri);
 
 				// Compute the hair root velocity
