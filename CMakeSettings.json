@@ -2,26 +2,15 @@
     // See https://go.microsoft.com//fwlink//?linkid=834763 for more information about this file.
     "configurations": [
         {
-            "name": "x86-Debug",
+            "name": "x64-ReleaseWithDebugInfo",
             "generator": "Ninja",
-            "configurationType": "Debug",
-            "inheritEnvironments": [ "msvc_x86" ],
+            "configurationType": "RelWithDebInfo",
+            "inheritEnvironments": [ "msvc_x64_x64" ],
             "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
             "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
             "cmakeCommandArgs": "-DHAIRENGINE_ENABLE_VPBRT=ON -DHAIRENGINE_ENABLE_OPENMP=ON",
             "buildCommandArgs": "-v",
             "ctestCommandArgs": ""
-        },
-        {
-            "name": "x86-Release",
-            "generator": "Ninja",
-            "configurationType": "Release",
-            "inheritEnvironments": [ "msvc_x86" ],
-            "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
-            "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
-            "cmakeCommandArgs": "-DHAIRENGINE_ENABLE_VPBRT=ON -DHAIRENGINE_ENABLE_OPENMP=ON",
-            "buildCommandArgs": "-v",
-            "ctestCommandArgs": "" 
         },
         {
             "name": "x64-Debug",
