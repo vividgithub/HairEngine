@@ -429,17 +429,59 @@ namespace HairEngine {
 				s = -1.0f;
 
 			// Compute the direction matrix
-			if (outD) {
-				auto & _ = *outD;
-				_(0, 0) = d(0) * d(0);
-				_(1, 1) = d(1) * d(1);
-				_(2, 2) = d(2) * d(2);
-				_(0, 1) = _(1, 0) = d(0) * d(1);
-				_(0, 2) = _(2, 0) = d(0) * d(2);
-				_(1, 2) = _(2, 1) = d(1) * d(2);
-			}
+			if (outD)
+				*outD = d * d.transpose();
 			
-			return k * (s * l - l0) * d;
+			return (k * (s * l - l0)) * d;
+		}
+
+		/**
+		 * Eigen vectorization works for aligned Vector4f and Matrix4f, so if enabling Eigen vectorization,
+		 * it is faster to compute in Vector4f and Matrix4f. So massSpringForce4f is used as a alternative version 
+		 * mass spring computation function used in Eigen Vectorization.
+		 * 
+		 * @param pos1 The first position of mass spring attached point
+		 * @param pos2 The second position of mass spring attached point
+		 * @param k The stiffness
+		 * @param l0 The rest length
+		 * @param directionVec The directional vector, nullptr indicates we use the normal spring computation
+		 * @param outD The optional directional matrix buffer, it is assigned as non-nullptr, a directional matrix will be written to it in Vector4f
+		 * 
+		 * @return The sprign force in Vector4f 
+		 */
+		inline Eigen::Vector4f massSpringForce4f(const Eigen::Vector3f & pos1, const Eigen::Vector3f & pos2,
+			float k, float l0, const Eigen::Vector3f *directionVec = nullptr, Eigen::Matrix4f *outD = nullptr) {
+
+			Eigen::Vector4f d;
+			d.segment<3>(0) = pos2 - pos1;
+			d(3) = 0.0f;
+
+			float l = d.norm();
+
+			// If pos2 == pos1, return 0 since we cannot determine the direction
+			if (l == 0) {
+				if (outD)
+					*outD = Eigen::Matrix4f::Identity();
+				return Eigen::Vector4f::Zero();
+			}
+
+			d.normalize();
+
+			// Compute the directional indicator
+			float s = 1.0f;
+			if (directionVec != nullptr) {
+				Eigen::Vector4f directionVec4f;
+				directionVec4f.segment<3>(0) = *directionVec;
+				directionVec4f(3) = 0.0f;
+				if (d.dot(directionVec4f) < 0.0f)
+					s = -1.0f;
+			}
+
+			// Compute the direction matrix
+			if (outD)
+				*outD = d * d.transpose();
+
+			return (k * (s * l - l0)) * d;
 		}
 	}
 }

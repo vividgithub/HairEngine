@@ -95,7 +95,7 @@ void testDifferentSelleMassSpringSolverSpeed() {
 
 	int strandNumbers[] = { 2500, 5000, 10000, 20000, 30000, 40000, 50000 };
 	int particlePerStrandNumbers[] = { 15, 25, 50, 75, 100, 150 };
-	vector<string> simulatorNames = { "Conjugate Gradient", "Parallel Conjugate Gradient", "Our Method" };
+	vector<string> simulatorNames = { "Our Method" }; //{ "Conjugate Gradient", "Parallel Conjugate Gradient", "Our Method" };
 
 	vector<TimingSummary> summaries;
 
@@ -129,12 +129,12 @@ void testDifferentSelleMassSpringSolverSpeed() {
 					integrator.simulate(integrationStep, Eigen::Affine3f::Identity());
 			}
 
-			ss.str("");
-			ss.clear();
-			ss << R"(C:\Users\VividWinPC1\Desktop\)" << "InitialSimulation-" << strandNumber << "-p" << particlePerStrandNumber << ".hair";
-			cout << "Writing initial simulation result to \"" << ss.str() << "\"" << endl;
-			hair->writeToFile(ss.str());
-			cout << "Done writing..." << endl;
+			//ss.str("");
+			//ss.clear();
+			//ss << R"(C:\Users\VividWinPC1\Desktop\)" << "InitialSimulation-" << strandNumber << "-p" << particlePerStrandNumber << ".hair";
+			//cout << "Writing initial simulation result to \"" << ss.str() << "\"" << endl;
+			//hair->writeToFile(ss.str());
+			//cout << "Done writing..." << endl;
 
 			// Test integration
 			for (const auto & simulatorName : simulatorNames) {
@@ -169,10 +169,10 @@ void testDifferentSelleMassSpringSolverSpeed() {
 
 				cout << "Done integration with time " << integrationTime << endl;
 
-				for (const auto & summary : summaries) {
-					fout << summary.simulatorName << "," << summary.nstrand << "," << summary.nparticle
+				const auto & summary = summaries.back();
+				fout << summary.simulatorName << "," << summary.nstrand << "," << summary.nparticle
 						<< "," << summary.totalTime << "," << summary.averageStrandTime << "," << summary.averageParticleTime << std::endl;
-				}
+
 			}
 		}
 }
@@ -190,7 +190,7 @@ void validSolverCorretness(int resampleRate=-1) {
 	Integrator integrator(hair, Affine3f::Identity());
 
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
-	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
+	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(massSpringCommonConfiguration, true);
 	auto positionCommiterSolver = integrator.addSolver<PositionCommiter>();
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
@@ -221,7 +221,7 @@ void validSolverCorretness(int resampleRate=-1) {
 
 int main() {
 
-	validSolverCorretness(5432);
+	testDifferentSelleMassSpringSolverSpeed();
 
 	return 0;
 }
