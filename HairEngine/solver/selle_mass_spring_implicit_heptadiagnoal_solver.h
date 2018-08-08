@@ -190,37 +190,37 @@ namespace HairEngine {
 
 					_.b[sp->i1] += springImpulse;
 					switch (selectedIndex) {
-					case 0: //{p1,p2} -> {p3, p4}
+					case 0: // {p1,p2} -> {p3, p4}
 						_.b[sp->i2] += springImpulse;
 						_.b[sp->i3] -= springImpulse;
 						_.b[sp->i4] -= springImpulse;
 						break;
-					case 1: //{p1, p3} -> {p2, p4}
+					case 1: // {p1, p3} -> {p2, p4}
 						_.b[sp->i2] -= springImpulse;
 						_.b[sp->i3] += springImpulse;
 						_.b[sp->i4] -= springImpulse;
 						break;
-					case 2: //{p1, p4} -> {p2, p3}
+					case 2: // {p1, p4} -> {p2, p3}
 						_.b[sp->i2] -= springImpulse;
 						_.b[sp->i3] -= springImpulse;
 						_.b[sp->i4] += springImpulse;
 						break;
-					case 3: //{p1} -> {p2, p3, p4}
+					case 3: // {p1} -> {p2, p3, p4}
 						_.b[sp->i2] -= springImpulse;
 						_.b[sp->i3] -= springImpulse;
 						_.b[sp->i4] -= springImpulse;
 						break;
-					case 4: //{p2} -> {p1, p3, p4}
+					case 4: // {p2} -> {p1, p3, p4}
 						_.b[sp->i2] -= springImpulse;
 						_.b[sp->i3] += springImpulse;
 						_.b[sp->i4] += springImpulse;
 						break;
-					case 5: //{p3} -> {p1, p2, p4}
+					case 5: // {p3} -> {p1, p2, p4}
 						_.b[sp->i2] += springImpulse;
 						_.b[sp->i3] -= springImpulse;
 						_.b[sp->i4] += springImpulse;
 						break;
-					default: //{p4} -> {p1, p2, p3}
+					default: // {p4} -> {p1, p2, p3}
 						_.b[sp->i2] += springImpulse;
 						_.b[sp->i3] += springImpulse;
 						_.b[sp->i4] -= springImpulse;

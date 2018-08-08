@@ -116,7 +116,7 @@ namespace HairEngine {
 			for (auto sp = springStartPtr; sp != springEndPtr; ++sp) {
 
 				Eigen::Matrix3f dm;
-				const Eigen::Vector3f springImpluse = info.t * MathUtility::massSpringForce(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
+				const Eigen::Vector3f springImpulse = info.t * MathUtility::massSpringForce(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
 				Eigen::Matrix3f vm = (f1 * sp->k) * dm; //Velocity matrix
 
 				// The local index sp->i1 < sp->i2, so sp->i2 is not the strand root particle
@@ -126,8 +126,8 @@ namespace HairEngine {
 					// Both are not strand root
 					const auto i1_3 = getVectorIndex(sp->i1);
 
-					b.segment<3>(i1_3) += springImpluse;
-					b.segment<3>(i2_3) -= springImpluse;
+					b.segment<3>(i1_3) += springImpulse;
+					b.segment<3>(i2_3) -= springImpulse;
 
 					// Check whether i1 is the strand root, if so, we don't fill that row
 					int rows[] = { i2_3, i1_3 };
