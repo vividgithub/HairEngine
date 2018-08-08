@@ -20,9 +20,10 @@ namespace HairEngine {
 			float relativeContour;
 			float fraction;
 			float degenerationFactor;
+			bool changeHairRoot;
 
-			Configuration(float relativeContour, float fraction, float degenerationFactor = 1.0f + 5e-3f):
-				relativeContour(relativeContour), fraction(fraction), degenerationFactor(degenerationFactor) {}
+			Configuration(float relativeContour, float fraction, float degenerationFactor = 1.0f + 5e-3f, bool changeHairRoot = false):
+				relativeContour(relativeContour), fraction(fraction), degenerationFactor(degenerationFactor), changeHairRoot(changeHairRoot) {}
 		};
 
 		/**
@@ -86,12 +87,15 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			float isoContour = conf.relativeContour * boundingBox().diagonal();
+			float isoContour = conf.relativeContour * boundingBox().diagonal().norm();
 
 			mapParticle(true, [this, &info, isoContour](Hair::Particle::Ptr par) {
 
 				Eigen::Vector3f outGradient;
 				Eigen::Vector3f newPosition = par->predictedPos(info.t);
+
+				if (par->localIndex == 0 && !conf.changeHairRoot)
+					return;
 
 				float signedDistance = distance(newPosition, &outGradient);
 
@@ -126,8 +130,10 @@ namespace HairEngine {
 
 				//If the new position is in the inside the body, then push it again
 				signedDistance = distance(par->pos, &outGradient);
-				if (signedDistance <= isoContour)
+				if (signedDistance <= isoContour) {
 					par->pos += ((isoContour - signedDistance) * conf.degenerationFactor) * outGradient.normalized();
+					par->vel = (newPosition - par->pos) / info.t;
+				}
 
 			});
 		}
@@ -168,7 +174,7 @@ namespace HairEngine {
 		 * 
 		 * @return The bounding box
 		 */
-		virtual Eigen::AlignedBox3f boundingBox() const = 0;
+		virtual const Eigen::AlignedBox3f & boundingBox() const = 0;
 
 		Eigen::Vector3f worldDiagnoal() const {
 			Eigen::AlignedBox3f bb = boundingBox();
