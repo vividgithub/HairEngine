@@ -91,8 +91,12 @@ namespace HairEngine {
 				const int particleStartIndex = particleStartIndexForStrand[si];
 				const int n = nparticleInStrand[si];
 				const int particleEndIndex = particleStartIndex + n;
+
 				const Spring *springStartPtr = springs + springStartIndexForStrand[si];
 				const Spring *springEndPtr = springStartPtr + nspringInStrand[si];
+
+				const AltitudeSpring *altitudeStartPtr = altitudeSprings + altitudeStartIndexForStrand[si];
+				const AltitudeSpring *altitudeEndPtr = altitudeStartPtr + naltitudeInStrand[si];
 
 				const Eigen::Matrix4f & zero = Eigen::Matrix4f::Zero();
 				const Eigen::Matrix4f & identity = Eigen::Matrix4f::Identity();
@@ -111,7 +115,7 @@ namespace HairEngine {
 				// Spring forces and direction matrix 
 				for (auto sp = springStartPtr; sp != springEndPtr; ++sp) {
 					Eigen::Matrix4f dm;
-					const Eigen::Vector4f springImpluse = info.t * MathUtility::massSpringForce4f(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
+					const Eigen::Vector4f springImpulse = info.t * MathUtility::massSpringForce4f(pos[sp->i1], pos[sp->i2], sp->k, sp->l0, nullptr, &dm);
 					dm *= f1 * sp->k;
 
 					const int diff = static_cast<int>(sp->i2) - static_cast<int>(sp->i1);
@@ -119,13 +123,109 @@ namespace HairEngine {
 					const int vi1 = sp->i1 - particleStartIndex;
 					const int vi2 = sp->i2 - particleStartIndex;
 
-					_.b[vi1] += springImpluse;
-					_.b[vi2] -= springImpluse;
+					_.b[vi1] += springImpulse;
+					_.b[vi2] -= springImpulse;
 
 					_.A[3][vi1] += dm;
 					_.A[3][vi2] += dm;
 					_.A[3 + diff][vi1] = -dm;
 					_.A[3 - diff][vi2] = -dm;
+				}
+
+				Eigen::Vector3f vs[7], normals[7];
+				// Altitude spring forces
+				for (auto sp = altitudeStartPtr; sp != altitudeEndPtr; ++sp) {
+					auto p1 = p(sp->i1), p2 = p(sp->i2), p3 = p(sp->i3), p4 = p(sp->i4);
+
+					Eigen::Vector3f
+						d12 = p2->pos - p1->pos,
+						d13 = p3->pos - p1->pos,
+						d14 = p4->pos - p1->pos,
+						d23 = p3->pos - p2->pos,
+						d24 = p4->pos - p2->pos,
+						d34 = p4->pos - p3->pos;
+
+					vs[0] = d13;
+					vs[1] = d12;
+					vs[2] = d12;
+
+					vs[3] = d12;
+					vs[4] = d12;
+					vs[5] = d13;
+					vs[6] = d14;
+
+					normals[0] = d12.cross(d34);
+					normals[1] = d13.cross(d24);
+					normals[2] = d14.cross(d23);
+
+					normals[3] = d23.cross(d24);
+					normals[4] = d13.cross(d14);
+					normals[5] = d12.cross(d14);
+					normals[6] = d12.cross(d23);
+
+					int selectedIndex = 0;
+					float largestSquaredNormal = normals[0].squaredNorm();
+
+					for (int i = 1; i < 7; ++i) {
+						float squaredNormal = normals[i].squaredNorm();
+						if (squaredNormal > largestSquaredNormal) {
+							selectedIndex = i;
+							largestSquaredNormal = squaredNormal;
+						}
+					}
+
+					// The mass spring forces
+					normals[selectedIndex].normalize();
+					Eigen::Vector3f d = MathUtility::project(vs[selectedIndex], normals[selectedIndex]);
+
+					//Make the direction forward to p1 -> another point
+					if (d.dot(vs[selectedIndex]) < 0)
+						d = -d;
+
+					float l = d.norm(), l0 = sp->l0s[selectedIndex];
+					d.normalize();
+
+					// Get the impulse forces
+					Eigen::Vector3f springImpulse = (info.t * sp->k * (l - l0)) * d;
+
+					_.b[sp->i1] += springImpulse;
+					switch (selectedIndex) {
+					case 0: //{p1,p2} -> {p3, p4}
+						_.b[sp->i2] += springImpulse;
+						_.b[sp->i3] -= springImpulse;
+						_.b[sp->i4] -= springImpulse;
+						break;
+					case 1: //{p1, p3} -> {p2, p4}
+						_.b[sp->i2] -= springImpulse;
+						_.b[sp->i3] += springImpulse;
+						_.b[sp->i4] -= springImpulse;
+						break;
+					case 2: //{p1, p4} -> {p2, p3}
+						_.b[sp->i2] -= springImpulse;
+						_.b[sp->i3] -= springImpulse;
+						_.b[sp->i4] += springImpulse;
+						break;
+					case 3: //{p1} -> {p2, p3, p4}
+						_.b[sp->i2] -= springImpulse;
+						_.b[sp->i3] -= springImpulse;
+						_.b[sp->i4] -= springImpulse;
+						break;
+					case 4: //{p2} -> {p1, p3, p4}
+						_.b[sp->i2] -= springImpulse;
+						_.b[sp->i3] += springImpulse;
+						_.b[sp->i4] += springImpulse;
+						break;
+					case 5: //{p3} -> {p1, p2, p4}
+						_.b[sp->i2] += springImpulse;
+						_.b[sp->i3] -= springImpulse;
+						_.b[sp->i4] += springImpulse;
+						break;
+					default: //{p4} -> {p1, p2, p3}
+						_.b[sp->i2] += springImpulse;
+						_.b[sp->i3] += springImpulse;
+						_.b[sp->i4] -= springImpulse;
+						break;
+					}
 				}
 
 				// Initialize the b and A of the strand root
