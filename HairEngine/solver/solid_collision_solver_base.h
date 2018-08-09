@@ -132,7 +132,7 @@ namespace HairEngine {
 				signedDistance = distance(par->pos, &outGradient);
 				if (signedDistance <= isoContour) {
 					par->pos += ((isoContour - signedDistance) * conf.degenerationFactor) * outGradient.normalized();
-					par->vel = (newPosition - par->pos) / info.t;
+					//par->vel = (newPosition - par->pos) / info.t;
 				}
 
 			});
