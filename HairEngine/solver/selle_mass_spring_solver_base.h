@@ -3,6 +3,7 @@
 #include <numeric>
 #include <functional>
 #include <chrono>
+#include <array>
 
 #include "../solver/integration_info.h"
 #include "../precompiled/precompiled.h"
@@ -529,5 +530,72 @@ namespace HairEngine {
 		 * @param info The integration info
 		 */
 		virtual void integrate(Eigen::Vector3f *pos, Eigen::Vector3f *vel, Eigen::Vector3f *outVel, const IntegrationInfo & info) = 0;
+
+		/**
+		 * Get which face/point or edge/edge spring for the altitude spring
+		 * 
+		 * @param sp The pointer of the altitude spring
+		 * @param outNormals The output UNNORMALIZED normal for each components in the altitude spring. 
+		 * @param outVs The unprojected vector for each components in the altitude spring. For point face component, it is equal to "OneEndPointInTheFace - Point",
+		 * for the edge/edge component, it is equal to "OnePointInEdge1 - OnePointInEdge2. It is a intermediate step for computing the projection vector normals and 
+		 * outD.
+		 * 
+		 * @return The selected component index for the altitude spring
+		 * 
+		 * Component definitions:
+		 * 
+		 * 0. Edge/Edge: {p1, p2} --> {p3, p4}
+	     * 1. Edge/Edge: {p1, p3} --> {p2, p4}
+		 * 2. Edge/Edge: {p1, p4} --> {p2, p3}
+		 * 3. Point/Face: p1 --> {p2, p3, p4}
+		 * 4. Point/Face: p2 --> {p1, p3, p4}
+		 * 5. Point/Face: p3 --> {p1, p2, p4}
+		 * 6. Point/Face: p4 --> {p1, p2, p3}
+		 */
+		int getAltitudeSpringSelectedSpringIndex(const AltitudeSpring *sp, Eigen::Vector3f outNormals[7], Eigen::Vector3f outVs[7]) {
+			auto p1 = p(sp->i1), p2 = p(sp->i2), p3 = p(sp->i3), p4 = p(sp->i4);
+
+			Eigen::Vector3f *normals = outNormals;
+			Eigen::Vector3f *vs = outVs;
+
+			Eigen::Vector3f
+				d12 = p2->pos - p1->pos,
+				d13 = p3->pos - p1->pos,
+				d14 = p4->pos - p1->pos,
+				d23 = p3->pos - p2->pos,
+				d24 = p4->pos - p2->pos,
+				d34 = p4->pos - p3->pos;
+
+			vs[0] = d13;
+			vs[1] = d12;
+			vs[2] = d12;
+
+			vs[3] = d12;
+			vs[4] = d12;
+			vs[5] = d13;
+			vs[6] = d14;
+
+			normals[0] = d12.cross(d34);
+			normals[1] = d13.cross(d24);
+			normals[2] = d14.cross(d23);
+
+			normals[3] = d23.cross(d24);
+			normals[4] = d13.cross(d14);
+			normals[5] = d12.cross(d14);
+			normals[6] = d12.cross(d23);
+
+			int selectedIndex = 0;
+			float largestSquaredNormal = normals[0].squaredNorm();
+
+			for (int i = 1; i < 7; ++i) {
+				float squaredNormal = normals[i].squaredNorm();
+				if (squaredNormal > largestSquaredNormal) {
+					selectedIndex = i;
+					largestSquaredNormal = squaredNormal;
+				}
+			}
+
+			return selectedIndex;
+		}
 	};
 }

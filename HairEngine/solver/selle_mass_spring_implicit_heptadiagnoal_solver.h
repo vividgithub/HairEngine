@@ -1,6 +1,7 @@
 #pragma once 
 
 #include <algorithm>
+#include <array>
 
 #include "selle_mass_spring_solver_base.h"
 #include "../util/parallutil.h"
@@ -135,44 +136,8 @@ namespace HairEngine {
 				Eigen::Vector3f vs[7], normals[7];
 				// Altitude spring forces
 				for (auto sp = altitudeStartPtr; sp != altitudeEndPtr; ++sp) {
-					auto p1 = p(sp->i1), p2 = p(sp->i2), p3 = p(sp->i3), p4 = p(sp->i4);
 
-					Eigen::Vector3f
-						d12 = p2->pos - p1->pos,
-						d13 = p3->pos - p1->pos,
-						d14 = p4->pos - p1->pos,
-						d23 = p3->pos - p2->pos,
-						d24 = p4->pos - p2->pos,
-						d34 = p4->pos - p3->pos;
-
-					vs[0] = d13;
-					vs[1] = d12;
-					vs[2] = d12;
-
-					vs[3] = d12;
-					vs[4] = d12;
-					vs[5] = d13;
-					vs[6] = d14;
-
-					normals[0] = d12.cross(d34);
-					normals[1] = d13.cross(d24);
-					normals[2] = d14.cross(d23);
-
-					normals[3] = d23.cross(d24);
-					normals[4] = d13.cross(d14);
-					normals[5] = d12.cross(d14);
-					normals[6] = d12.cross(d23);
-
-					int selectedIndex = 0;
-					float largestSquaredNormal = normals[0].squaredNorm();
-
-					for (int i = 1; i < 7; ++i) {
-						float squaredNormal = normals[i].squaredNorm();
-						if (squaredNormal > largestSquaredNormal) {
-							selectedIndex = i;
-							largestSquaredNormal = squaredNormal;
-						}
-					}
+					const int selectedIndex = getAltitudeSpringSelectedSpringIndex(sp, normals, vs);
 
 					// The mass spring forces
 					normals[selectedIndex].normalize();
@@ -186,7 +151,8 @@ namespace HairEngine {
 					d.normalize();
 
 					// Get the impulse forces
-					Eigen::Vector3f springImpulse = (info.t * sp->k * (l - l0)) * d;
+					Eigen::Vector3f springImpulse3 = (info.t * sp->k * (l - l0)) * d;
+					Eigen::Vector4f springImpulse = Eigen::Vector4f(springImpulse3.x(), springImpulse3.y(), springImpulse3.z(), 0.0f);
 
 					_.b[sp->i1] += springImpulse;
 					switch (selectedIndex) {

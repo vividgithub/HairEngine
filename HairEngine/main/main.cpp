@@ -37,7 +37,7 @@ SelleMassSpringSolverBase::Configuration massSpringCommonConfiguration(
 	500000.0f,
 	10000.0f,
 	10000.0f,
-	1000.0f,
+	200.0f,
 	15.0f,
 	true,
 	4.0f,
@@ -192,11 +192,12 @@ void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -
 
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
-	auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
-		sdfFilePath, 
-		Eigen::Affine3f::Identity(), 
-		SolidCollisionSolverBase::Configuration(0.015f, 6.0)
-		);
+	// auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
+	// 	sdfFilePath, 
+	// 	Eigen::Affine3f::Identity(), 
+	// 	SolidCollisionSolverBase::Configuration(0.015f, 6.0)
+	// 	);
+	integrator.addSolver<PositionCommiter>();
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
