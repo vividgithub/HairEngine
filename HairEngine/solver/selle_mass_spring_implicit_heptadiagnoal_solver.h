@@ -137,31 +137,49 @@ namespace HairEngine {
 				// Altitude spring forces
 				for (auto sp = altitudeStartPtr; sp != altitudeEndPtr; ++sp) {
 
-					const auto spInfo = getAltitudeSpringInfo(sp);
-					Eigen::Vector4f springImpulse = Eigen::Vector4f::Zero();
-					springImpulse.segment<3>(0) = (info.t * sp->k * (spInfo.l - spInfo.l0)) * spInfo.d;
+					// auto p1 = p(sp->i1);
+					// auto p2 = p(sp->i2);
+					// auto p3 = p(sp->i3);
+					// auto p4 = p(sp->i4);
+     //
+					// float l0 = ((0.5f * (p3->restPos + p4->restPos)) - (0.5f * (p1->restPos + p2->restPos))).norm();
+					// Eigen::Vector3f d = (0.5f * (p3->pos + p4->pos)) - (0.5f * (p1->pos + p2->pos));
+					// float l = d.norm();
+					// d /= l;
+     //
+					// Eigen::Vector4f springImpulse = Eigen::Vector4f::Zero();
+					// springImpulse.segment<3>(0) = info.t * sp->k * (l - l0) * d;
+     //
+					// _.b[sp->i1 - particleStartIndex] += springImpulse;
+					// _.b[sp->i2 - particleStartIndex] += springImpulse;
+					// _.b[sp->i3 - particleStartIndex] -= springImpulse;
+					// _.b[sp->i4 - particleStartIndex] -= springImpulse;
 
-					Eigen::Matrix4f dm = Eigen::Matrix4f::Zero();
-					dm.block<3, 3>(0, 0) = (f1 * sp->k) * spInfo.d * spInfo.d.transpose();
-
-					std::array<int, 4> vis = {
-						sp->i1 - particleStartIndex,
-						sp->i2 - particleStartIndex,
-						sp->i3 - particleStartIndex,
-						sp->i4 - particleStartIndex,
-					};
-
-					for (int i = 0; i < 4; ++i) {
-						const int vi = vis[i];
-						// Add the spring impulse
-						_.b[vi] += spInfo.signs[i] * springImpulse;
-
-						// Add the direction matrix
-						// for (int j = 0; j < 4; ++i) {
-						// 	int diff = vis[j] - vi;
-						// 	_.A[3 + diff][vi] += spInfo.signs[i] * spInfo.intp[j] * dm;
-						// }
-					}
+					 const auto spInfo = getAltitudeSpringInfo(sp);
+					 Eigen::Vector4f springImpulse = Eigen::Vector4f::Zero();
+					 springImpulse.segment<3>(0) = (info.t * sp->k * (spInfo.l - spInfo.l0)) * spInfo.d;
+     
+					 Eigen::Matrix4f dm = Eigen::Matrix4f::Zero();
+					 dm.block<3, 3>(0, 0) = (f1 * sp->k) * spInfo.d * spInfo.d.transpose();
+     
+					 std::array<int, 4> vis = {
+					 	sp->i1 - particleStartIndex,
+					 	sp->i2 - particleStartIndex,
+					 	sp->i3 - particleStartIndex,
+					 	sp->i4 - particleStartIndex,
+					 };
+     
+					 for (int i = 0; i < 4; ++i) {
+					 	const int vi = vis[i];
+					 	// Add the spring impulse
+					 	_.b[vi] += spInfo.signs[i] * springImpulse;
+     
+					 	// Add the direction matrix
+					 	for (int j = 0; j < 4; ++j) {
+					 		int diff = vis[j] - vi;
+					 		_.A[3 + diff][vi] += spInfo.signs[i] * spInfo.intp[j] * dm;
+					 	}
+					 }
 				}
 
 				// Initialize the b and A of the strand root

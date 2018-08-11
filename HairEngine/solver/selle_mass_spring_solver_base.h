@@ -315,6 +315,11 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
+			 if (info.frameNumber == 250) {
+			 	debugTestDegenerate();
+			 	return;
+			 }
+
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 				pos1[i] = par->pos;
 				vel1[i] = par->vel;
@@ -558,167 +563,201 @@ namespace HairEngine {
 			/// in the same primitive as p1; Otherwise signs[i] = -1.0
 			std::array<float, 4> signs;
 
-			Hair::Particle::Ptr p[4]; ///< The four particles
+			std::array<Hair::Particle::Ptr, 4> p; ///< The four particles
 		};
 		
 		AltitudeSpringInfo getAltitudeSpringInfo(const AltitudeSpring * sp) {
 			AltitudeSpringInfo ret;
 
-			//FIXME: Fix the s, t computation in point/face springs
-			//FIXME: Remove signs in the Altitude springs
-
-			auto p1 = p(sp->i1), p2 = p(sp->i2), p3 = p(sp->i3), p4 = p(sp->i4);
-
-			Eigen::Vector3f normals[7];
-			Eigen::Vector3f vs[7];
-
-			Eigen::Vector3f
-				d12 = p2->pos - p1->pos,
-				d13 = p3->pos - p1->pos,
-				d14 = p4->pos - p1->pos,
-				d23 = p3->pos - p2->pos,
-				d24 = p4->pos - p2->pos,
-				d34 = p4->pos - p3->pos;
-
-			vs[0] = d13;
-			vs[1] = d12;
-			vs[2] = d12;
-
-			vs[3] = d12;
-			vs[4] = d12;
-			vs[5] = d13;
-			vs[6] = d14;
-
-			normals[0] = d12.cross(d34);
-			normals[1] = d13.cross(d24);
-			normals[2] = d14.cross(d23);
-
-			normals[3] = d23.cross(d24);
-			normals[4] = d13.cross(d14);
-			normals[5] = d12.cross(d14);
-			normals[6] = d12.cross(d23);
-
-			ret.selectedIndex = 0;
-			float largestSquaredNormal = normals[0].squaredNorm();
-
-			for (int i = 1; i < 7; ++i) {
-				float squaredNormal = normals[i].squaredNorm();
-				if (squaredNormal > largestSquaredNormal) {
-					ret.selectedIndex = i;
-					largestSquaredNormal = squaredNormal;
-				}
-			}
-
-			// Set l, l0 and d (normalized) and make d in the right direction
-			normals[ret.selectedIndex].normalize();
-			ret.d = MathUtility::project(vs[ret.selectedIndex], normals[ret.selectedIndex]);
+			/************************** Fixed Altitude Spring *******************************/
+			ret.p = {
+				p(sp->i1), p(sp->i2), p(sp->i3), p(sp->i4)
+			};
+			
+			ret.l0 = ((0.5f * (ret.p[2]->restPos + ret.p[3]->restPos)) - (0.5f * (ret.p[0]->restPos + ret.p[1]->restPos))).norm();
+			ret.d = (0.5f * (ret.p[2]->pos + ret.p[3]->pos)) - (0.5f * (ret.p[0]->pos + ret.p[1]->pos));
 			ret.l = ret.d.norm();
 			ret.d /= ret.l;
-			if (ret.d.dot(vs[ret.selectedIndex]) < 0.0f)
-				ret.d = -ret.d;
-			ret.l0 = sp->l0s[ret.selectedIndex];
 
-			// Compute the interpolation weights
-			/*
-			 * 0. Edge/Edge: {p1, p2} --> {p3, p4}
-		     * 1. Edge/Edge: {p1, p3} --> {p2, p4}
-			 * 2. Edge/Edge: {p1, p4} --> {p2, p3}
-			 * 3. Point/Face: p1 --> {p2, p3, p4}
-			 * 4. Point/Face: p2 --> {p1, p3, p4}
-			 * 5. Point/Face: p3 --> {p1, p2, p4}
-			 * 6. Point/Face: p4 --> {p1, p2, p3}
-			 */			
-		 	if (ret.selectedIndex < 3) {
-		 		// Edge/edge spring
-		 		std::pair<float, float> r;
+			ret.intp = { 0.5f, 0.5f, -0.5f, -0.5f };
+			ret.signs = { 1.0f, 1.0f, -1.0f, -1.0f };
+
+			/************************** Original Altitude Spring *******************************/
+
+			//auto p1 = p(sp->i1), p2 = p(sp->i2), p3 = p(sp->i3), p4 = p(sp->i4);
+
+			//Eigen::Vector3f normals[7];
+			//Eigen::Vector3f vs[7];
+
+			//Eigen::Vector3f
+			//	d12 = p2->pos - p1->pos,
+			//	d13 = p3->pos - p1->pos,
+			//	d14 = p4->pos - p1->pos,
+			//	d23 = p3->pos - p2->pos,
+			//	d24 = p4->pos - p2->pos,
+			//	d34 = p4->pos - p3->pos;
+
+			//vs[0] = d13;
+			//vs[1] = d12;
+			//vs[2] = d12;
+
+			//vs[3] = d12;
+			//vs[4] = d12;
+			//vs[5] = d13;
+			//vs[6] = d14;
+
+			//normals[0] = d12.cross(d34);
+			//normals[1] = d13.cross(d24);
+			//normals[2] = d14.cross(d23);
+
+			//normals[3] = d23.cross(d24);
+			//normals[4] = d13.cross(d14);
+			//normals[5] = d12.cross(d14);
+			//normals[6] = d12.cross(d23);
+
+			//ret.selectedIndex = 0;
+			//float largestSquaredNormal = normals[0].squaredNorm();
+
+			////for (int i = 1; i < 7; ++i) {
+			////	float squaredNormal = normals[i].squaredNorm();
+			////	if (squaredNormal > largestSquaredNormal) {
+			////		ret.selectedIndex = i;
+			////		largestSquaredNormal = squaredNormal;
+			////	}
+			////}
+
+			//// Set l, l0 and d (normalized) and make d in the right direction
+			//normals[ret.selectedIndex].normalize();
+			//ret.d = MathUtility::project(vs[ret.selectedIndex], normals[ret.selectedIndex]);
+			//ret.l = ret.d.norm();
+			//ret.d /= ret.l;
+			//if (ret.d.dot(vs[ret.selectedIndex]) < 0.0f)
+			//	ret.d = -ret.d;
+			//ret.l0 = sp->l0s[ret.selectedIndex];
+
+			//// Compute the interpolation weights
+			///*
+			// * 0. Edge/Edge: {p1, p2} --> {p3, p4}
+		 //    * 1. Edge/Edge: {p1, p3} --> {p2, p4}
+			// * 2. Edge/Edge: {p1, p4} --> {p2, p3}
+			// * 3. Point/Face: p1 --> {p2, p3, p4}
+			// * 4. Point/Face: p2 --> {p1, p3, p4}
+			// * 5. Point/Face: p3 --> {p1, p2, p4}
+			// * 6. Point/Face: p4 --> {p1, p2, p3}
+			// */			
+		 //	if (ret.selectedIndex < 3) {
+		 //		// Edge/edge spring
+		 //		std::pair<float, float> r;
 		
-		 		switch (ret.selectedIndex) {
-		 		case 0:
-		 			// 0. Edge/Edge: {p1, p2} --> {p3, p4}
-		 			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p2->pos, p3->pos, p4->pos);
-		 			ret.intp = { 1 - r.first, r.first, r.second - 1, -r.second };
-		 			ret.signs = { 1.0f, 1.0f, -1.0f, -1.0f };
-		 			break;
-		 		case 1:
-		 			// 1. Edge/Edge: {p1, p3} --> {p2, p4}
-		 			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p3->pos, p2->pos, p4->pos);
-		 			ret.intp = { 1 - r.first, r.second - 1, r.first, -r.second };
-		 			ret.signs = { 1.0f, -1.0f, 1.0f, -1.0f };
-		 			break;
-		 		default:
-		 			// 2. Edge/Edge: {p1, p4} --> {p2, p3}
-		 			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p4->pos, p2->pos, p3->pos);
-		 			ret.intp = { 1 - r.first, r.second - 1, -r.second, r.first };
-		 			ret.signs = { 1.0f, -1.0f, -1.0f, 1.0f };
-		 			break;
-		 		}
-		 	}
-		 	else {
-		 		// Point/face spring
-		 		Eigen::Vector3f p, o, d, e;
+		 //		switch (ret.selectedIndex) {
+		 //		case 0:
+		 //			// 0. Edge/Edge: {p1, p2} --> {p3, p4}
+		 //			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p2->pos, p3->pos, p4->pos);
+		 //			ret.intp = { 1 - r.first, r.first, r.second - 1, -r.second };
+		 //			ret.signs = { 1.0f, 1.0f, -1.0f, -1.0f };
+		 //			break;
+		 //		case 1:
+		 //			// 1. Edge/Edge: {p1, p3} --> {p2, p4}
+		 //			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p3->pos, p2->pos, p4->pos);
+		 //			ret.intp = { 1 - r.first, r.second - 1, r.first, -r.second };
+		 //			ret.signs = { 1.0f, -1.0f, 1.0f, -1.0f };
+		 //			break;
+		 //		default:
+		 //			// 2. Edge/Edge: {p1, p4} --> {p2, p3}
+		 //			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p4->pos, p2->pos, p3->pos);
+		 //			ret.intp = { 1 - r.first, r.second - 1, -r.second, r.first };
+		 //			ret.signs = { 1.0f, -1.0f, -1.0f, 1.0f };
+		 //			break;
+		 //		}
+		 //	}
+		 //	else {
+		 //		// Point/face spring
+		 //		Eigen::Vector3f p, o, d, e;
   
-		 		switch (ret.selectedIndex) {
-		 		case 3:
-		 			// 3. Point/Face: p1 --> {p2, p3, p4}
-		 			p = p1->pos;
-		 			o = p2->pos;
-		 			d = p3->pos;
-		 			e = p4->pos;
-		 			ret.signs = { 1.0f, -1.0f, -1.0f, -1.0f };
-		 			break;
-		 		case 4:
-		 			// 4. Point/Face: p2 --> {p1, p3, p4}
-		 			p = p2->pos;
-		 			o = p1->pos;
-		 			d = p3->pos;
-		 			e = p4->pos;
-		 			ret.signs = { 1.0f, -1.0f, 1.0f, 1.0f };
-		 			break;
-		 		case 5:
-		 			// 5. Point/Face: p3 --> {p1, p2, p4}
-		 			p = p3->pos;
-		 			o = p1->pos;
-		 			d = p2->pos;
-		 			e = p4->pos;
-		 			ret.signs = { 1.0f, 1.0f, -1.0f, 1.0f };
-		 			break;
-		 		default:
-		 			// 6. Point/Face: p4 --> {p1, p2, p3}
-		 			p = p4->pos;
-		 			o = p1->pos;
-		 			d = p2->pos;
-		 			e = p3->pos;
-		 			ret.signs = { 1.0f, 1.0f, 1.0f, -1.0f };
-		 			break;
-		 		}
+		 //		switch (ret.selectedIndex) {
+		 //		case 3:
+		 //			// 3. Point/Face: p1 --> {p2, p3, p4}
+		 //			p = p1->pos;
+		 //			o = p2->pos;
+		 //			d = p3->pos;
+		 //			e = p4->pos;
+		 //			ret.signs = { 1.0f, -1.0f, -1.0f, -1.0f };
+		 //			break;
+		 //		case 4:
+		 //			// 4. Point/Face: p2 --> {p1, p3, p4}
+		 //			p = p2->pos;
+		 //			o = p1->pos;
+		 //			d = p3->pos;
+		 //			e = p4->pos;
+		 //			ret.signs = { 1.0f, -1.0f, 1.0f, 1.0f };
+		 //			break;
+		 //		case 5:
+		 //			// 5. Point/Face: p3 --> {p1, p2, p4}
+		 //			p = p3->pos;
+		 //			o = p1->pos;
+		 //			d = p2->pos;
+		 //			e = p4->pos;
+		 //			ret.signs = { 1.0f, 1.0f, -1.0f, 1.0f };
+		 //			break;
+		 //		default:
+		 //			// 6. Point/Face: p4 --> {p1, p2, p3}
+		 //			p = p4->pos;
+		 //			o = p1->pos;
+		 //			d = p2->pos;
+		 //			e = p3->pos;
+		 //			ret.signs = { 1.0f, 1.0f, 1.0f, -1.0f };
+		 //			break;
+		 //		}
   
-		 		std::pair<float, float> st = MathUtility::pointToPlaneClosestPointApproach(p, o, d, e);
-		 		float s = st.first;
-		 		float t = st.second;
+		 //		std::pair<float, float> st = MathUtility::pointToPlaneClosestPointApproach(p, o, d, e);
+		 //		float s = st.first;
+		 //		float t = st.second;
   
-		 		switch (ret.selectedIndex) {
-		 		case 3:
-		 			ret.intp = { 1.0, s + t - 1.0f, -s, -t };
-		 			break;
-		 		case 4:
-		 			ret.intp = { 1 - s - t, -1.0f, s, t };
-		 			break;
-		 		case 5:
-		 			ret.intp = { 1 - s - t, s, -1.0f, t };
-		 			break;
-		 		default:
-		 			ret.intp = { 1 - s - t, s, t, -1.0f };
-		 			break;
-		 		}
-		 	}
-
-			// Compute the spring force
-			ret.p[0] = p1;
-			ret.p[1] = p2;
-			ret.p[2] = p3;
-			ret.p[3] = p4;
+		 //		switch (ret.selectedIndex) {
+		 //		case 3:
+		 //			ret.intp = { 1.0, s + t - 1.0f, -s, -t };
+		 //			break;
+		 //		case 4:
+		 //			ret.intp = { 1 - s - t, -1.0f, s, t };
+		 //			break;
+		 //		case 5:
+		 //			ret.intp = { 1 - s - t, s, -1.0f, t };
+		 //			break;
+		 //		default:
+		 //			ret.intp = { 1 - s - t, s, t, -1.0f };
+		 //			break;
+		 //		}
+		 //	}
   
 		 	return ret;
+		 }
+
+		 void debugTestDegenerate() {
+			 mapStrand(true, [this] (int si) {
+
+				 const Eigen::Vector3f rootPos = p(particleStartIndexForStrand[si])->pos;
+
+				 Eigen::Vector3f planeNormal = Eigen::Vector3f::Random();
+				 planeNormal(1) = 0.0f; //We make the plane in y axis
+				 planeNormal.normalize();
+
+				 for (int i = particleStartIndexForStrand[si] + 1; i < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++i) {
+					 auto par = p(i);
+					 const Eigen::Vector3f rootPosToParticlePos = par->pos - rootPos;
+
+					 float direction = rootPosToParticlePos.dot(planeNormal) > 0 ? 1.0f : -1.0f;
+
+					 par->pos = rootPos + (rootPosToParticlePos - rootPosToParticlePos.dot(planeNormal) * planeNormal);
+
+					 /*
+					 * In order to make them no real coplane (otherwise the d will be 0 vector), we add a small randomness
+					 * to push then forward or backward along the plane normal
+					 */
+					 par->pos +=
+						 (par->pos - rootPos).norm() * direction * Eigen::internal::random(0.0f, 0.003f) * planeNormal;
+					 par->vel = Eigen::Vector3f::Zero();
+				 }
+			 });
 		 }
 	};
 }

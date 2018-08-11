@@ -50,6 +50,8 @@ namespace HairEngine {
 				}
 				attachedPoints[1] = -attachedPoints[1]; // The sign in the computation of attachPoints[1] is inverse
 
+				HairEngine_DebugAssert(std::abs((attachedPoints[1] - attachedPoints[0]).norm() - spInfo.l) < 4e-4f);
+
 				Eigen::Vector3f springForce = sp->k * (spInfo.l - spInfo.l0) * spInfo.d;
 
 				//Make the direction forward to p1 -> another point

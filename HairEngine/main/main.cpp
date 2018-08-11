@@ -37,7 +37,7 @@ SelleMassSpringSolverBase::Configuration massSpringCommonConfiguration(
 	500000.0f,
 	10000.0f,
 	10000.0f,
-	200.0f,
+	2000.0f,
 	15.0f,
 	true,
 	4.0f,
@@ -181,7 +181,7 @@ void testDifferentSelleMassSpringSolverSpeed() {
 void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -1) {
 	const float simulationTimeStep = 5e-3f; // The time interval for dumping a frame
 	const float integrationTimeStep = 5e-3f; // The time for true integration
-	const int totalSimulationLoop = 250; // The simulation loop
+	const int totalSimulationLoop = 350; // The simulation loop
 
 	cout << "Reading the hair..." << endl;
 	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Resources\Models\Feamle 04 Retop\Hair\Curly-50000-p25.hair)";
