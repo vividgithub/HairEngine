@@ -96,8 +96,8 @@ namespace HairEngine {
 				const Spring *springStartPtr = springs + springStartIndexForStrand[si];
 				const Spring *springEndPtr = springStartPtr + nspringInStrand[si];
 
-				const AltitudeSpring *altitudeStartPtr = altitudeSprings + altitudeStartIndexForStrand[si];
-				const AltitudeSpring *altitudeEndPtr = altitudeStartPtr + naltitudeInStrand[si];
+				AltitudeSpring *altitudeStartPtr = altitudeSprings + altitudeStartIndexForStrand[si];
+				AltitudeSpring *altitudeEndPtr = altitudeStartPtr + naltitudeInStrand[si];
 
 				const Eigen::Matrix4f & zero = Eigen::Matrix4f::Zero();
 				const Eigen::Matrix4f & identity = Eigen::Matrix4f::Identity();
@@ -137,60 +137,30 @@ namespace HairEngine {
 				// Altitude spring forces
 				for (auto sp = altitudeStartPtr; sp != altitudeEndPtr; ++sp) {
 
-					const int selectedIndex = getAltitudeSpringSelectedSpringIndex(sp, normals, vs);
+					const auto spInfo = getAltitudeSpringInfo(sp);
+					Eigen::Vector4f springImpulse = Eigen::Vector4f::Zero();
+					springImpulse.segment<3>(0) = (info.t * sp->k * (spInfo.l - spInfo.l0)) * spInfo.d;
 
-					// The mass spring forces
-					normals[selectedIndex].normalize();
-					Eigen::Vector3f d = MathUtility::project(vs[selectedIndex], normals[selectedIndex]);
+					Eigen::Matrix4f dm = Eigen::Matrix4f::Zero();
+					dm.block<3, 3>(0, 0) = (f1 * sp->k) * spInfo.d * spInfo.d.transpose();
 
-					//Make the direction forward to p1 -> another point
-					if (d.dot(vs[selectedIndex]) < 0)
-						d = -d;
+					std::array<int, 4> vis = {
+						sp->i1 - particleStartIndex,
+						sp->i2 - particleStartIndex,
+						sp->i3 - particleStartIndex,
+						sp->i4 - particleStartIndex,
+					};
 
-					float l = d.norm(), l0 = sp->l0s[selectedIndex];
-					d.normalize();
+					for (int i = 0; i < 4; ++i) {
+						const int vi = vis[i];
+						// Add the spring impulse
+						_.b[vi] += spInfo.signs[i] * springImpulse;
 
-					// Get the impulse forces
-					Eigen::Vector3f springImpulse3 = (info.t * sp->k * (l - l0)) * d;
-					Eigen::Vector4f springImpulse = Eigen::Vector4f(springImpulse3.x(), springImpulse3.y(), springImpulse3.z(), 0.0f);
-
-					_.b[sp->i1] += springImpulse;
-					switch (selectedIndex) {
-					case 0: // {p1,p2} -> {p3, p4}
-						_.b[sp->i2] += springImpulse;
-						_.b[sp->i3] -= springImpulse;
-						_.b[sp->i4] -= springImpulse;
-						break;
-					case 1: // {p1, p3} -> {p2, p4}
-						_.b[sp->i2] -= springImpulse;
-						_.b[sp->i3] += springImpulse;
-						_.b[sp->i4] -= springImpulse;
-						break;
-					case 2: // {p1, p4} -> {p2, p3}
-						_.b[sp->i2] -= springImpulse;
-						_.b[sp->i3] -= springImpulse;
-						_.b[sp->i4] += springImpulse;
-						break;
-					case 3: // {p1} -> {p2, p3, p4}
-						_.b[sp->i2] -= springImpulse;
-						_.b[sp->i3] -= springImpulse;
-						_.b[sp->i4] -= springImpulse;
-						break;
-					case 4: // {p2} -> {p1, p3, p4}
-						_.b[sp->i2] -= springImpulse;
-						_.b[sp->i3] += springImpulse;
-						_.b[sp->i4] += springImpulse;
-						break;
-					case 5: // {p3} -> {p1, p2, p4}
-						_.b[sp->i2] += springImpulse;
-						_.b[sp->i3] -= springImpulse;
-						_.b[sp->i4] += springImpulse;
-						break;
-					default: // {p4} -> {p1, p2, p3}
-						_.b[sp->i2] += springImpulse;
-						_.b[sp->i3] += springImpulse;
-						_.b[sp->i4] -= springImpulse;
-						break;
+						// Add the direction matrix
+						// for (int j = 0; j < 4; ++i) {
+						// 	int diff = vis[j] - vi;
+						// 	_.A[3 + diff][vi] += spInfo.signs[i] * spInfo.intp[j] * dm;
+						// }
 					}
 				}
 

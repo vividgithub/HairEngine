@@ -532,31 +532,45 @@ namespace HairEngine {
 		virtual void integrate(Eigen::Vector3f *pos, Eigen::Vector3f *vel, Eigen::Vector3f *outVel, const IntegrationInfo & info) = 0;
 
 		/**
-		 * Get which face/point or edge/edge spring for the altitude spring
+		 * Get the altitude spring information based on current state. The selectedIndex indicates which point/face or edge/edge 
+		 * components are selected for the altitude spring. The "d" indicates the normalized minimization distance points from the point/edge/face that 
+		 * p1 belongs to to antoher primmitve, where "l" denotes the length of the original distance before "d" is normalized. 
+		 * And "l0" denotes the rest length of the selceted index. "isPointFace" indicates the type of altitude spring of whether it is 
+		 * a point/face altitude spring or edge/edge altitude spring. "intp" is the interpolation weight for p1, p2, p3, p4. If the 
+		 * spring is a edge/edge spring, the sum interpolation weight in the same primitive (point/face/edge) is always equal to 1 or -1.
+		 * Another point of view of interpolation weight is where l * d = -(intp[0] * p1 + intp[1] * p2 + intp[2] * p3 + intp[3] * p4); The "signs"
+		 * array indicates if a point is in the same primitive as p1, it will be 1.0 otherwise it will be -1.0;
 		 * 
-		 * @param sp The pointer of the altitude spring
-		 * @param outNormals The output UNNORMALIZED normal for each components in the altitude spring. 
-		 * @param outVs The unprojected vector for each components in the altitude spring. For point face component, it is equal to "OneEndPointInTheFace - Point",
-		 * for the edge/edge component, it is equal to "OnePointInEdge1 - OnePointInEdge2. It is a intermediate step for computing the projection vector normals and 
-		 * outD.
-		 * 
-		 * @return The selected component index for the altitude spring
-		 * 
-		 * Component definitions:
-		 * 
-		 * 0. Edge/Edge: {p1, p2} --> {p3, p4}
-	     * 1. Edge/Edge: {p1, p3} --> {p2, p4}
-		 * 2. Edge/Edge: {p1, p4} --> {p2, p3}
-		 * 3. Point/Face: p1 --> {p2, p3, p4}
-		 * 4. Point/Face: p2 --> {p1, p3, p4}
-		 * 5. Point/Face: p3 --> {p1, p2, p4}
-		 * 6. Point/Face: p4 --> {p1, p2, p3}
+		 * @param sp The altitude spring inde
 		 */
-		int getAltitudeSpringSelectedSpringIndex(const AltitudeSpring *sp, Eigen::Vector3f outNormals[7], Eigen::Vector3f outVs[7]) {
+		struct AltitudeSpringInfo {
+			int selectedIndex; ///< Which face/point or edge/edge springs are used. 
+
+			Eigen::Vector3f d; ///< The normalized minimum distance vector (points from p1)
+
+			float l, l0; ///< Current length and the rest length
+
+			/// The interpolation weight of the closest point approach, so that
+			/// l * d = -(intp[0] * p1 + intp[1] * p2 + intp[2] * p3 + intp[3] * p4)
+			std::array<float, 4> intp;
+
+			/// Indicating the primitive where the particle belongs to, if signs[i] = 1.0, then pi is 
+			/// in the same primitive as p1; Otherwise signs[i] = -1.0
+			std::array<float, 4> signs;
+
+			Hair::Particle::Ptr p[4]; ///< The four particles
+		};
+		
+		AltitudeSpringInfo getAltitudeSpringInfo(const AltitudeSpring * sp) {
+			AltitudeSpringInfo ret;
+
+			//FIXME: Fix the s, t computation in point/face springs
+			//FIXME: Remove signs in the Altitude springs
+
 			auto p1 = p(sp->i1), p2 = p(sp->i2), p3 = p(sp->i3), p4 = p(sp->i4);
 
-			Eigen::Vector3f *normals = outNormals;
-			Eigen::Vector3f *vs = outVs;
+			Eigen::Vector3f normals[7];
+			Eigen::Vector3f vs[7];
 
 			Eigen::Vector3f
 				d12 = p2->pos - p1->pos,
@@ -584,18 +598,127 @@ namespace HairEngine {
 			normals[5] = d12.cross(d14);
 			normals[6] = d12.cross(d23);
 
-			int selectedIndex = 0;
+			ret.selectedIndex = 0;
 			float largestSquaredNormal = normals[0].squaredNorm();
 
 			for (int i = 1; i < 7; ++i) {
 				float squaredNormal = normals[i].squaredNorm();
 				if (squaredNormal > largestSquaredNormal) {
-					selectedIndex = i;
+					ret.selectedIndex = i;
 					largestSquaredNormal = squaredNormal;
 				}
 			}
 
-			return selectedIndex;
-		}
+			// Set l, l0 and d (normalized) and make d in the right direction
+			normals[ret.selectedIndex].normalize();
+			ret.d = MathUtility::project(vs[ret.selectedIndex], normals[ret.selectedIndex]);
+			ret.l = ret.d.norm();
+			ret.d /= ret.l;
+			if (ret.d.dot(vs[ret.selectedIndex]) < 0.0f)
+				ret.d = -ret.d;
+			ret.l0 = sp->l0s[ret.selectedIndex];
+
+			// Compute the interpolation weights
+			/*
+			 * 0. Edge/Edge: {p1, p2} --> {p3, p4}
+		     * 1. Edge/Edge: {p1, p3} --> {p2, p4}
+			 * 2. Edge/Edge: {p1, p4} --> {p2, p3}
+			 * 3. Point/Face: p1 --> {p2, p3, p4}
+			 * 4. Point/Face: p2 --> {p1, p3, p4}
+			 * 5. Point/Face: p3 --> {p1, p2, p4}
+			 * 6. Point/Face: p4 --> {p1, p2, p3}
+			 */			
+		 	if (ret.selectedIndex < 3) {
+		 		// Edge/edge spring
+		 		std::pair<float, float> r;
+		
+		 		switch (ret.selectedIndex) {
+		 		case 0:
+		 			// 0. Edge/Edge: {p1, p2} --> {p3, p4}
+		 			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p2->pos, p3->pos, p4->pos);
+		 			ret.intp = { 1 - r.first, r.first, r.second - 1, -r.second };
+		 			ret.signs = { 1.0f, 1.0f, -1.0f, -1.0f };
+		 			break;
+		 		case 1:
+		 			// 1. Edge/Edge: {p1, p3} --> {p2, p4}
+		 			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p3->pos, p2->pos, p4->pos);
+		 			ret.intp = { 1 - r.first, r.second - 1, r.first, -r.second };
+		 			ret.signs = { 1.0f, -1.0f, 1.0f, -1.0f };
+		 			break;
+		 		default:
+		 			// 2. Edge/Edge: {p1, p4} --> {p2, p3}
+		 			r = MathUtility::linetoLineDistanceClosestPointApproach(p1->pos, p4->pos, p2->pos, p3->pos);
+		 			ret.intp = { 1 - r.first, r.second - 1, -r.second, r.first };
+		 			ret.signs = { 1.0f, -1.0f, -1.0f, 1.0f };
+		 			break;
+		 		}
+		 	}
+		 	else {
+		 		// Point/face spring
+		 		Eigen::Vector3f p, o, d, e;
+  
+		 		switch (ret.selectedIndex) {
+		 		case 3:
+		 			// 3. Point/Face: p1 --> {p2, p3, p4}
+		 			p = p1->pos;
+		 			o = p2->pos;
+		 			d = p3->pos;
+		 			e = p4->pos;
+		 			ret.signs = { 1.0f, -1.0f, -1.0f, -1.0f };
+		 			break;
+		 		case 4:
+		 			// 4. Point/Face: p2 --> {p1, p3, p4}
+		 			p = p2->pos;
+		 			o = p1->pos;
+		 			d = p3->pos;
+		 			e = p4->pos;
+		 			ret.signs = { 1.0f, -1.0f, 1.0f, 1.0f };
+		 			break;
+		 		case 5:
+		 			// 5. Point/Face: p3 --> {p1, p2, p4}
+		 			p = p3->pos;
+		 			o = p1->pos;
+		 			d = p2->pos;
+		 			e = p4->pos;
+		 			ret.signs = { 1.0f, 1.0f, -1.0f, 1.0f };
+		 			break;
+		 		default:
+		 			// 6. Point/Face: p4 --> {p1, p2, p3}
+		 			p = p4->pos;
+		 			o = p1->pos;
+		 			d = p2->pos;
+		 			e = p3->pos;
+		 			ret.signs = { 1.0f, 1.0f, 1.0f, -1.0f };
+		 			break;
+		 		}
+  
+		 		std::pair<float, float> st = MathUtility::pointToPlaneClosestPointApproach(p, o, d, e);
+		 		float s = st.first;
+		 		float t = st.second;
+  
+		 		switch (ret.selectedIndex) {
+		 		case 3:
+		 			ret.intp = { 1.0, s + t - 1.0f, -s, -t };
+		 			break;
+		 		case 4:
+		 			ret.intp = { 1 - s - t, -1.0f, s, t };
+		 			break;
+		 		case 5:
+		 			ret.intp = { 1 - s - t, s, -1.0f, t };
+		 			break;
+		 		default:
+		 			ret.intp = { 1 - s - t, s, t, -1.0f };
+		 			break;
+		 		}
+		 	}
+
+			// Compute the spring force
+			ret.p[0] = p1;
+			ret.p[1] = p2;
+			ret.p[2] = p3;
+			ret.p[3] = p4;
+  
+		 	return ret;
+		 }
 	};
 }

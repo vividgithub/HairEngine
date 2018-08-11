@@ -7,6 +7,7 @@
 #include <Eigen/Eigen>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include "../precompiled/precompiled.h"
 
 namespace HairEngine {
@@ -81,7 +82,7 @@ namespace HairEngine {
 
 		/*
 		 * The distance between two line segments (p0 <---> p`), (q0 <---> q1). The attached point is
-		 * p0 (1 - s) + p1 and q0 (1 - s) + q1.
+		 * p0 (1 - s) + s p1 and q0 (1 - s) + s q1.
 		 */
 		inline float lineSegmentSquaredDistance(const Eigen::Vector3f & p0, const Eigen::Vector3f & p1,
 		                                   const Eigen::Vector3f & q0, const Eigen::Vector3f & q1,
@@ -318,6 +319,121 @@ namespace HairEngine {
 
 			//Floating error might yield a negative value
 			return  std::max(0.0f, a * s * s - 2 * b * s * t + c * t * t + 2 * d * s - 2 * e * t + f);
+		}
+
+		/**
+		* Get the CPA (closest point approach) which yields the minimum distance for the lines defined as (p0, p1) and (q0, q1).
+		* That is, suppose the minimum distance interpolation point are p in line (p0, p1) and q in line (q0, q1). Then
+		* The interpolation weight <s, t> should be equal to p = p0 + (p1 - q0) s, q = q0 + (q1 - q0) t.
+		*
+		* @param p0 The first point in Line1
+		* @param p1 The second point in Line2
+		* @param q0 The first point in Line1
+		* @param q1 The second point in Line2
+		*
+		* @return A pair of float <s, t>. Indicating the interpolation weight for Line1 and Line2
+		*/
+		inline std::pair<float, float> linetoLineDistanceClosestPointApproach(const Eigen::Vector3f & p0, const Eigen::Vector3f & p1,
+			const Eigen::Vector3f & q0, const Eigen::Vector3f & q1) {
+
+			std::pair<float, float> r;
+			Eigen::Vector3f p0p1 = p1 - p0;
+			Eigen::Vector3f q0q1 = q1 - q0;
+			Eigen::Vector3f q0p0 = p0 - q0;
+
+			float a = p0p1.dot(p0p1);
+			float b = p0p1.dot(q0q1);
+			float c = q0q1.dot(q0q1);
+			float d = p0p1.dot(q0p0);
+			float e = q0q1.dot(q0p0);
+
+			float f1 = b * b - a * c;
+			r.first = (c * d - b * e) / f1;
+			r.second = (b * d - a * e) / f1;
+
+			return r;
+		}
+
+		/**
+		 * The line squared distance in 3D defined. Line 1 is defined by (p0, p1) and Line 2 is defined 
+		 * by (q0, q1). Attached point for the distance vector can be computed by p0 (1 - s) + s p1 and 
+		 * q0 ( 1 - t) + s q1
+		 * 
+		 * @param p0 The first point in the Line 1
+		 * @param p1 The second point in the Line 1 
+		 * @param q0 The first point in the Line 2
+		 * @param q1 The second point in the Line 2
+		 * @param outS The interpolation weight in Line1 where the interpolation point is computed as p0 (1 - s) + s p1
+		 * @param outT The interpolation weight in Line2 where the interpolation point is computed as q0 (1 - s) + s q1
+		 * 
+		 * @return The line squared distance for two lines
+		 */
+		inline float linetoLineSquaredDistance(const Eigen::Vector3f & p0, const Eigen::Vector3f & p1,
+			const Eigen::Vector3f & q0, const Eigen::Vector3f & q1,
+			float * outS = nullptr, float *outT = nullptr) {
+
+			std::pair<float, float> r = linetoLineDistanceClosestPointApproach(p0, p1, q0, q1);
+
+			if (outS)
+				*outS = r.first;
+			if (outT)
+				*outT = r.second;
+
+			return ((p0 + r.first * (p1 - p0)) - (q0 + r.second * (q1 - q0))).squaredNorm();
+		}
+
+		/**
+		 * Get the closest point approach from the point to a plane. p denotes the point, and o1, o2 and o3 denotes the surface plane 
+		 * defined with 3 poins. 
+		 * 
+		 * @param p The input point
+		 * @param o1 The first point in the plane
+		 * @param o2 The second point in the plane
+		 * @param o3 The third point in the plane
+		 * 
+		 * @return A pair of float <s,t>. Where the closest point in the plane is defined as o1 + s (o2 - o1) + t (o3 - o2) or 
+		 * (1 - s - t) o1 + s o2 + t o3.
+		 */
+		inline std::pair<float, float> pointToPlaneClosestPointApproach(const Eigen::Vector3f & p, const Eigen::Vector3f & o1, 
+			const Eigen::Vector3f & o2, const Eigen::Vector3f & o3) {
+			Eigen::Vector3f op = o1 - p, d = o2 - o1, e = o3 - o1;
+
+			float d2 = d.squaredNorm(), e2 = e.squaredNorm(), de = d.dot(e);
+			float dop = d.dot(op), eop = e.dot(op);
+
+			float f1 = 1.0f / (de * de - d2 * e2);
+
+			float s = (e2 * dop - de * eop) * f1;
+			float t = (d2 * eop - de * dop) * f1;
+
+			return { s, t };
+		}
+
+		/**
+		 * Get the squared distance from a point to a plane. p denotes a point position in 3 dimensional space, and (o1, o2, o3) defines the infinity plane. 
+		 * The function supports to output the CPA (closest point approach) where the point is define as (1 - s - t) o1 + s o2 + t o3, use outS and outT to 
+		 * get the value.
+		 * 
+		 * @param The input point position
+		 * @param o1 The first point in the plane
+		 * @param o2 The second point in the plane
+		 * @param o3 The third point in the plane
+		 * 
+		 * @param outS The output s
+		 * 
+		 * @return The squared distance from the point to the plane. 
+		 */
+		inline float pointToPlaneSquaredDistance(const Eigen::Vector3f & p, const Eigen::Vector3f & o1, const Eigen::Vector3f & o2, const Eigen::Vector3f & o3, 
+			float *outS = nullptr, float *outT = nullptr) {
+
+			std::pair<float, float> st = pointToPlaneClosestPointApproach(p, o1, o2, o3);
+
+			if (outS)
+				*outS = st.first;
+			if (outT)
+				*outT = st.second;
+
+			return (p - o1 - st.first * (o2 - o1) - st.second * (o3 - o1)).squaredNorm();
 		}
 
 		/*

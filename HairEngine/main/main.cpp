@@ -179,7 +179,7 @@ void testDifferentSelleMassSpringSolverSpeed() {
 }
 
 void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -1) {
-	const float simulationTimeStep = 0.03f; // The time interval for dumping a frame
+	const float simulationTimeStep = 5e-3f; // The time interval for dumping a frame
 	const float integrationTimeStep = 5e-3f; // The time for true integration
 	const int totalSimulationLoop = 250; // The simulation loop
 
