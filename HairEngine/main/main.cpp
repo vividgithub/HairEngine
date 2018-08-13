@@ -179,12 +179,12 @@ void testDifferentSelleMassSpringSolverSpeed() {
 }
 
 void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -1) {
-	const float simulationTimeStep = 5e-3f; // The time interval for dumping a frame
-	const float integrationTimeStep = 5e-3f; // The time for true integration
-	const int totalSimulationLoop = 350; // The simulation loop
+	float simulationTimeStep = 3e-2f; // The time interval for dumping a frame
+	float integrationTimeStep = 5e-3f; // The time for true integration
+	int totalSimulationLoop = 350; // The simulation loop
 
 	cout << "Reading the hair..." << endl;
-	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Resources\Models\Feamle 04 Retop\Hair\Curly-50000-p25.hair)";
+	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Hair.hair)";
 	const auto hair = make_shared<Hair>(Hair(hairFilePath).resample(resampleRate >= 1 ? resampleRate : 1));
 
 	cout << "Creating integrator..." << endl;
@@ -218,8 +218,9 @@ void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -
 
 	for (int i = 0; i < totalSimulationLoop; ++i) {
 		cout << "Simulation Frame " << i + 1 << "..." << endl;
-		for (float currentIntegrationTime = 0.0f; currentIntegrationTime < 0.9995f * simulationTimeStep; currentIntegrationTime += integrationTimeStep)
+		for (float currentIntegrationTime = 0.0f; currentIntegrationTime < 0.9995f * simulationTimeStep; currentIntegrationTime += integrationTimeStep) {
 			integrator.simulate(integrationTimeStep, Affine3f::Identity());
+		}
 	}
 
 	cout << "Simulation end..." << endl;
@@ -231,6 +232,6 @@ void testSDFReading(const std::string & sdfPath) {
 }
 
 int main() {
-	validSolverCorretness(R"(C:\Users\VividWinPC1\Desktop\Test1.sdf2)", 5421);
+	validSolverCorretness(R"(C:\Users\VividWinPC1\Desktop\Test1.sdf2)", 200);
 	return 0;
 }

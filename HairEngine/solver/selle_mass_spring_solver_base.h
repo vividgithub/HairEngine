@@ -315,7 +315,7 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			 if (info.frameNumber == 250) {
+			 if (info.frameNumber == 300) {
 			 	debugTestDegenerate();
 			 	return;
 			 }
