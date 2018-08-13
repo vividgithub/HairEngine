@@ -13,6 +13,7 @@
 #include "../solver/selle_mass_spring_visualizer.h"
 #include "../solver/selle_mass_spring_implicit_heptadiagnoal_solver.h"
 #include "../solver/position_commiter.h"
+#include "../solver/signed_distance_field_solid_collision_solver.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -177,7 +178,7 @@ void testDifferentSelleMassSpringSolverSpeed() {
 		}
 }
 
-void validSolverCorretness(int resampleRate=-1) {
+void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -1) {
 	const float simulationTimeStep = 0.03f; // The time interval for dumping a frame
 	const float integrationTimeStep = 5e-3f; // The time for true integration
 	const int totalSimulationLoop = 250; // The simulation loop
@@ -190,8 +191,12 @@ void validSolverCorretness(int resampleRate=-1) {
 	Integrator integrator(hair, Affine3f::Identity());
 
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
-	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplicitSolver>(massSpringCommonConfiguration, true);
-	auto positionCommiterSolver = integrator.addSolver<PositionCommiter>();
+	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
+	auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
+		sdfFilePath, 
+		Eigen::Affine3f::Identity(), 
+		SolidCollisionSolverBase::Configuration(0.015f, 6.0)
+		);
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
@@ -219,9 +224,12 @@ void validSolverCorretness(int resampleRate=-1) {
 	cout << "Simulation end..." << endl;
 }
 
+void testSDFReading(const std::string & sdfPath) {
+	// Run in Debug
+	SignedDistanceFieldSolidCollisionSolver sdf(sdfPath, Eigen::Affine3f::Identity(), SolidCollisionSolverBase::Configuration(0.005f, 3.0f));
+}
+
 int main() {
-
-	testDifferentSelleMassSpringSolverSpeed();
-
+	validSolverCorretness(R"(C:\Users\VividWinPC1\Desktop\Test1.sdf2)", 5421);
 	return 0;
 }

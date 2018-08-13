@@ -87,6 +87,10 @@ namespace HairEngine {
 			SolidCollisionSolverBase::tearDown();
 		}
 
+		const Eigen::AlignedBox3f & boundingBox() const override {
+			return bounding;
+		}
+
 		float modelDistance(const Eigen::Vector3f & pos, Eigen::Vector3f * outGradientPtr = nullptr) const override {
 			//If not in the bounding box, we cannot get the distance
 			if (!bounding.contains(pos))
@@ -127,7 +131,7 @@ namespace HairEngine {
 
 			//Compute the distance and the gradient
 			float distance = 0.0f;
-			auto gradient = Eigen::Vector3f::Zero();
+			Eigen::Vector3f gradient = Eigen::Vector3f::Zero();
 
 			for (size_t i = 0; i < 8; ++i) {
 				size_t boolx = (i >> 2), booly = (i >> 1) & 1, boolz = i & 1;
@@ -202,7 +206,7 @@ namespace HairEngine {
 			}
 
 			cellSizeReciprocal = cellSize.cwiseInverse();
-			maxP = minP + Eigen::Vector3f(nx - 1, ny - 1, nz - 1).cwiseProduct(cellSize);
+			maxP = minP + Eigen::Vector3i(nx - 1, ny - 1, nz - 1).cast<float>().cwiseProduct(cellSize);
 			bounding = Eigen::AlignedBox3f(minP, maxP);
 
 			vertexes = new SDFColliderVertex[vertexCount];

@@ -27,9 +27,10 @@ namespace HairEngine {
 
 	HairEngine_Public:
 
-		static constexpr const int PARTICLE_TYPE_INDICATOR_BIT = std::numeric_limits<int>::min(); 
+		static constexpr const int PARTICLE_TYPE_INDICATOR_BIT = std::numeric_limits<int>::min();
+
 		/**
-		 * ParticleToParticle spring definition. i1 and i2 indicates the index in the particleIndices for the particle to 
+		 * Normal spring definition. i1 and i2 indicates the index in the particleIndices for the particle to 
 		 * connect. Float k indicates the real stiffness, and l0 is the rest length of the spring.
 		 */
 		struct Spring {
@@ -40,6 +41,36 @@ namespace HairEngine {
 
 			Spring(int i1, int i2, float k, float l0, int32_t typeID):
 				i1(i1), i2(i2), k(k) , l0(l0), typeID(typeID) {}
+		};
+
+		/**
+		 * Altitude spring definition, an altitude spring is represented as a tetrahedra with 4 adajcent particles.
+		 * Altitude spring is used for fixing the position degeneration when we arbitarily change the position of the particles 
+		 */
+		struct AltitudeSpring {
+			int i1, i2, i3, i4;
+			float k;
+
+			/*
+			* A temporary storage to store some caculation variables. In a tetrahedral, we have 3
+			* edge/edge springs and 4 point/face spring, so that we use a array of size 7(3 + 4) to store them.
+			* The order is:
+			*     0. Edge/Edge: {p1, p2} --> {p3, p4}
+			*     1. Edge/Edge: {p1, p3} --> {p2, p4}
+			*     2. Edge/Edge: {p1, p4} --> {p2, p3}
+			*     3. Point/Face: p1 --> {p2, p3, p4}
+			*     4. Point/Face: p2 --> {p1, p3, p4}
+			*     5. Point/Face: p3 --> {p1, p2, p4}
+			*     6. Point/Face: p4 --> {p1, p2, p3}
+			* The l0s variables store the rest length of each tetrahedral elements, normals is used for storing the
+			* current normals, and vs means a point/point vector which points from p1 to another edge/face vertex
+			* (since we want the i, and d are pointed from p1), for example, for a Point/Face p4 --> {p1, p2, p3},
+			* the v is p1 --> p4.
+			*/
+			std::array<float, 7> l0s; ///< The rest length of each tetrahedral point/face or edge/edge
+			
+			AltitudeSpring(int i1, int i2, int i3, int i4, float k, const std::array<float, 7> & l0s):
+				i1(i1), i2(i2), i3(i3), i4(i4), k(k), l0s(l0s) {}
 		};
 
 		/**
@@ -79,7 +110,7 @@ namespace HairEngine {
 		 */
 		SelleMassSpringSolverBase( const Configuration & conf): 
 			stretchStiffness(conf.stretchStiffness), bendingStiffness(conf.bendingStiffness), 
-			torsionStiffness(conf.torsionStiffness), damping(conf.damping),
+			torsionStiffness(conf.torsionStiffness), altitudeStiffness(conf.altitudeStiffness), damping(conf.damping),
 			enableStrainLimiting(conf.enableStrainLimiting), colinearMaxRad(conf.colinearMaxDegree * 3.141592f / 180.0f), 
 			mass(conf.mass) {}
 
@@ -189,6 +220,7 @@ namespace HairEngine {
 			kStretch = stretchStiffness / averageLength;
 			kBending = bendingStiffness / averageLength;
 			kTorsion = torsionStiffness / averageLength;
+			kAltitude = altitudeStiffness / averageLength;
 			pmass = mass * nstrand / nparticle;
 
 			// Setup the spring
@@ -218,6 +250,65 @@ namespace HairEngine {
 
 				nspringInStrand[si] = nspring - nspringInStrand[si];
 				springStartIndexForStrand[si] = (si > 0) ? springStartIndexForStrand[si - 1] + nspringInStrand[si - 1] : 0;
+			}
+
+			//Setup the altitude springs
+			HairEngine_AllocatorAllocate(altitudeSprings, nparticle); 
+			HairEngine_AllocatorAllocate(naltitudeInStrand, nstrand);
+			HairEngine_AllocatorAllocate(altitudeStartIndexForStrand, nstrand);
+
+			naltitude = 0;
+			for (int si = 0; si < nstrand; ++si) {
+
+				naltitudeInStrand[si] = 0;
+
+				for (int i = particleStartIndexForStrand[si]; i < particleStartIndexForStrand[si] + nparticleInStrand[si] - 3; ++i) {
+					auto p1 = p(i);
+					Hair::Particle::Ptr p2 = p(i + 1);
+					Hair::Particle::Ptr p3 = p(i + 2);
+					Hair::Particle::Ptr p4 = p(i + 3);
+
+					// Create altitude springs
+					Eigen::Vector3f vs[7], normals[7];
+
+					std::array<float, 7> l0s;
+
+					Eigen::Vector3f
+						d12 = p2->restPos - p1->restPos,
+						d13 = p3->restPos - p1->restPos,
+						d14 = p4->restPos - p1->restPos,
+						d23 = p3->restPos - p2->restPos,
+						d24 = p4->restPos - p2->restPos,
+						d34 = p4->restPos - p3->restPos;
+
+					vs[0] = d13;
+					vs[1] = d12;
+					vs[2] = d12;
+
+					vs[3] = d12;
+					vs[4] = d12;
+					vs[5] = d13;
+					vs[6] = d14;
+
+					normals[0] = d12.cross(d34);
+					normals[1] = d13.cross(d24);
+					normals[2] = d14.cross(d23);
+
+					normals[3] = d23.cross(d24);
+					normals[4] = d13.cross(d14);
+					normals[5] = d12.cross(d14);
+					normals[6] = d12.cross(d23);
+
+					for (int i = 0; i < 7; ++i) {
+						normals[i].normalize();
+						l0s[i] = MathUtility::project(vs[i], normals[i]).norm();
+					}
+
+					std::allocator<AltitudeSpring>().construct(altitudeSprings + (naltitude++), i, i + 1, i + 2, i + 3, kAltitude, l0s);
+					++naltitudeInStrand[si];
+				}
+
+				altitudeStartIndexForStrand[si] = (si > 0) ? altitudeStartIndexForStrand[si - 1] + naltitudeInStrand[si - 1] : 0;
 			}
 		}
 
@@ -282,6 +373,10 @@ namespace HairEngine {
 			HairEngine_AllocatorDeallocate(nspringInStrand, nstrand);
 			HairEngine_AllocatorDeallocate(springStartIndexForStrand, nstrand);
 
+			HairEngine_AllocatorDeallocate(altitudeSprings, nparticle);
+			HairEngine_AllocatorDeallocate(naltitudeInStrand, nstrand);
+			HairEngine_AllocatorDeallocate(altitudeStartIndexForStrand, nstrand);
+
 			HairEngine_SafeDeleteArray(pos1);
 			HairEngine_SafeDeleteArray(pos2);
 			HairEngine_SafeDeleteArray(vel1);
@@ -318,6 +413,7 @@ namespace HairEngine {
 		float stretchStiffness;
 		float bendingStiffness;
 		float torsionStiffness;
+		float altitudeStiffness;
 		float damping;
 		bool enableStrainLimiting;
 		float colinearMaxRad;
@@ -332,7 +428,7 @@ namespace HairEngine {
 		/// as k = stiffness / averageHairLength, so that the k will change for different 
 		/// hair style without changing the stiffness. The reason behind this is that short 
 		/// hair needs a larger k for inextensibility.
-		float kStretch = 0.0f, kBending = 0.0f, kTorsion = 0.0f;
+		float kStretch = 0.0f, kBending = 0.0f, kTorsion = 0.0f, kAltitude = 0.0f;
 
 		float pmass; ///< Particle mass, equals to (mass * nstrand / nparticle)
 
@@ -358,7 +454,12 @@ namespace HairEngine {
 		Spring *springs; ///< The spring array
 		int nspring; ///< The size of spring array
 		int *nspringInStrand = nullptr; ///< Number of strand in the strand i
-		int *springStartIndexForStrand = nullptr; ///< Number of strand in the strand i
+		int *springStartIndexForStrand = nullptr; ///< The start index in the "springs" array for the strand i
+
+		AltitudeSpring *altitudeSprings; ///< The altitude spring arrays
+		int naltitude; ///< The size of altitude spring
+		int *naltitudeInStrand = nullptr; ///< Number of altitude spring in the strand i
+		int *altitudeStartIndexForStrand = nullptr; ///< The start index of altitude spring in the "altitudeSprings" array in the strand i
 
 		double integrationTime = 0.0f;
 
