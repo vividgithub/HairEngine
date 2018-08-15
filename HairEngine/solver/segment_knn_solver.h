@@ -73,6 +73,15 @@ namespace HairEngine {
 			Solver::tearDown();
 		}
 
+		/**
+		 * Get the radius of the searching
+		 * 
+		 * @return The radius
+		 */
+		float getRadius() const {
+			return radius;
+		}
+
 	HairEngine_Protected:
 		float radius; ///< The searching radius
 
