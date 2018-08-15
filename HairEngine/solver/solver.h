@@ -74,7 +74,21 @@ namespace HairEngine {
 				mapper(hair->particles + i);
 			};
 
-			ParallismUtility::conditionalParallelFor(parallel, 0, static_cast<int>(hair->nparticle), block);
+			ParallismUtility::conditionalParallelFor(parallel, 0, hair->nparticle, block);
+		}
+
+		/**
+		 * Iterate all the segments and apply mapper function to them
+		 * 
+		 * @param parallel True to enable parallism, otherwise the segment will be handled sequentially
+		 * @param mapper The mapping function
+		 */
+		void mapSegment(bool parallel, const std::function<void(Hair::Segment::Ptr)> &mapper) {
+			const auto & block = [&mapper, this] (int i) {
+				mapper(hair->segments + i);
+			};
+
+			ParallismUtility::conditionalParallelFor(parallel, 0, hair->nsegment, block);
 		}
 
 		/**

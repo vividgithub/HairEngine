@@ -30,6 +30,8 @@ option(HAIRENGINE_ENABLE_OPENMP "Enable openmp for parallism work, otherwise all
 set(
 	HAIRENGINE_COMMON_SOURCE_FILES
 	"${HAIRENGINE_SOURCE_DIR}/geo/hair.cpp"
+
+	"${HAIRENGINE_EXTERNAL_DIR}/CompactNSearch/src/CompactNSearch.cpp"
 	) 
 
 # All the include directories
@@ -37,7 +39,8 @@ set(
 	HAIRENGINE_INCLUDE_DIRS 
 	"${HAIRENGINE_ROOT_DIR}/.."
 	"${HAIRENGINE_EXTERNAL_DIR}/Eigen3" # Eigen3
-	"${HAIRENGINE_EXTERNAL_DIR}/VPly/cpp" # VPly
+	"${HAIRENGINE_EXTERNAL_DIR}/VPly/cpp" # VPly 
+	"${HAIRENGINE_EXTERNAL_DIR}/CompactNSearch/include" # CompactNSearch
 	) 
 
 # All the external libraries
