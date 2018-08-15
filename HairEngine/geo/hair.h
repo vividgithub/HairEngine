@@ -26,7 +26,7 @@ namespace HairEngine {
 	class PositionCommiter;
 	class Solver;
 	class SelleMassSpringImplicitSolver;
-	class ParticleKNNSolver;
+	class SegmentKNNSolver;
 
 	std::ostream & operator<<(std::ostream & os, const Hair & hair);
 
@@ -41,7 +41,7 @@ namespace HairEngine {
 		friend class PositionCommiter;
 		friend class Solver;
 		friend class SelleMassSpringImplicitSolver;
-		friend class ParticleKNNSolver;
+		friend class SegmentKNNSolver;
 		
 	HairEngine_Public:
 		struct Strand;
@@ -112,6 +112,15 @@ namespace HairEngine {
 			 */
 			Eigen::Vector3f d() const {
 				return p2->pos - p1->pos;
+			}
+
+			/**
+			 * Get the midpoint of the segment
+			 * 
+			 * @return The midpoint coordinate
+			 */
+			Eigen::Vector3f midpoint() const {
+				return 0.5f * (p2->pos + p1->pos);
 			}
 
 			/**
