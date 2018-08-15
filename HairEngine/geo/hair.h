@@ -27,6 +27,7 @@ namespace HairEngine {
 	class Solver;
 	class SelleMassSpringImplicitSolver;
 	class SegmentKNNSolver;
+	class SegmentKNNSolverVisualizer;
 
 	std::ostream & operator<<(std::ostream & os, const Hair & hair);
 
@@ -42,6 +43,7 @@ namespace HairEngine {
 		friend class Solver;
 		friend class SelleMassSpringImplicitSolver;
 		friend class SegmentKNNSolver;
+		friend class SegmentKNNSolverVisualizer;
 		
 	HairEngine_Public:
 		struct Strand;

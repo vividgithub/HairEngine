@@ -14,6 +14,8 @@
 #include "../solver/selle_mass_spring_implicit_heptadiagnoal_solver.h"
 #include "../solver/position_commiter.h"
 #include "../solver/signed_distance_field_solid_collision_solver.h"
+#include "../solver/segment_knn_solver.h"
+#include "../solver/segment_knn_solver_visualizer.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -178,10 +180,11 @@ void testDifferentSelleMassSpringSolverSpeed() {
 		}
 }
 
-void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -1) {
-	const float simulationTimeStep = 0.03f; // The time interval for dumping a frame
+
+void validSolverCorretness(int resampleRate = -1) {
+	const float simulationTimeStep = 5e-3f; // The time interval for dumping a frame
 	const float integrationTimeStep = 5e-3f; // The time for true integration
-	const int totalSimulationLoop = 250; // The simulation loop
+	const int totalSimulationLoop = 1; // The simulation loop
 
 	cout << "Reading the hair..." << endl;
 	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Resources\Models\Feamle 04 Retop\Hair\Curly-50000-p25.hair)";
@@ -192,11 +195,12 @@ void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -
 
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
-	auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
-		sdfFilePath, 
-		Eigen::Affine3f::Identity(), 
-		SolidCollisionSolverBase::Configuration(0.015f, 6.0)
-		);
+	//auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
+	//	sdfFilePath, 
+	//	Eigen::Affine3f::Identity(), 
+	//	SolidCollisionSolverBase::Configuration(0.015f, 6.0)
+	//	);
+	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0017f);
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
@@ -213,7 +217,7 @@ void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -
 		"TestHair-${F}-Spring.vply",
 		simulationTimeStep,
 		massSpringSolver.get()
-		);
+	);
 
 	for (int i = 0; i < totalSimulationLoop; ++i) {
 		cout << "Simulation Frame " << i + 1 << "..." << endl;
@@ -222,6 +226,9 @@ void validSolverCorretness(const std::string & sdfFilePath, int resampleRate = -
 	}
 
 	cout << "Simulation end..." << endl;
+
+	char c;
+	cin >> c;
 }
 
 void testSDFReading(const std::string & sdfPath) {
@@ -230,6 +237,6 @@ void testSDFReading(const std::string & sdfPath) {
 }
 
 int main() {
-	validSolverCorretness(R"(C:\Users\VividWinPC1\Desktop\Test1.sdf2)", 5421);
+	validSolverCorretness();
 	return 0;
 }

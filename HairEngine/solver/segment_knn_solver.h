@@ -2,6 +2,7 @@
 
 #include "CompactNSearch.h"
 #include "solver.h"
+#include <iostream>
 
 namespace HairEngine {
 
@@ -19,11 +20,13 @@ namespace HairEngine {
 			nsearch = new CompactNSearch::NeighborhoodSearch(radius);
 
 			// Construct the position buffer
-			posBuffer = new CompactNSearch::Real[hair.nsegment];
+			posBuffer = new CompactNSearch::Real[3 * hair.nsegment];
 			nsearch->add_point_set(posBuffer, hair.nsegment);
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
+			std::cout << "SegmentKNNSolver solve..." << std::endl;
+
 			// Copy the pos in Vector3f into the posBuffer
 			mapSegment(true, [this](Hair::Segment::Ptr seg) {
 				CompactNSearch::Real *posBufferStartPtr = seg->globalIndex * 3 + posBuffer;
