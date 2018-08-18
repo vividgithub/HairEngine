@@ -25,8 +25,6 @@ namespace HairEngine {
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
-			std::cout << "SegmentKNNSolver solve..." << std::endl;
-
 			// Copy the pos in Vector3f into the posBuffer
 			mapSegment(true, [this](Hair::Segment::Ptr seg) {
 				CompactNSearch::Real *posBufferStartPtr = seg->globalIndex * 3 + posBuffer;

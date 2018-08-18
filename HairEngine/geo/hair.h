@@ -46,6 +46,7 @@ namespace HairEngine {
 		friend class SegmentKNNSolver;
 		friend class SegmentKNNSolverVisualizer;
 		friend class HairContactsImpulseSolver;
+		friend class HairContactsImpulseSolverVisualizer;
 		
 	HairEngine_Public:
 		struct Strand;

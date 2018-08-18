@@ -16,6 +16,7 @@
 #include "../solver/signed_distance_field_solid_collision_solver.h"
 #include "../solver/segment_knn_solver.h"
 #include "../solver/segment_knn_solver_visualizer.h"
+#include "../solver/hair_contacts_impulse_solver.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -184,10 +185,10 @@ void testDifferentSelleMassSpringSolverSpeed() {
 void validSolverCorretness(int resampleRate = -1) {
 	const float simulationTimeStep = 5e-3f; // The time interval for dumping a frame
 	const float integrationTimeStep = 5e-3f; // The time for true integration
-	const int totalSimulationLoop = 1; // The simulation loop
+	const int totalSimulationLoop = 250; // The simulation loop
 
 	cout << "Reading the hair..." << endl;
-	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Resources\Models\Feamle 04 Retop\Hair\Curly-50000-p25.hair)";
+	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Hair Contacts 1\Hair.hair)";
 	const auto hair = make_shared<Hair>(Hair(hairFilePath).resample(resampleRate >= 1 ? resampleRate : 1));
 
 	cout << "Creating integrator..." << endl;
@@ -200,7 +201,10 @@ void validSolverCorretness(int resampleRate = -1) {
 	//	Eigen::Affine3f::Identity(), 
 	//	SolidCollisionSolverBase::Configuration(0.015f, 6.0)
 	//	);
-	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0017f);
+	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0010f);
+	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 1500.0f);
+	
+	integrator.addSolver<PositionCommiter>();
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
@@ -217,6 +221,13 @@ void validSolverCorretness(int resampleRate = -1) {
 		"TestHair-${F}-Spring.vply",
 		simulationTimeStep,
 		massSpringSolver.get()
+	);
+
+	auto hairContactsVisualizer = integrator.addSolver<HairContactsImpulseSolverVisualizer>(
+		R"(C:\Users\VividWinPC1\Desktop\HairData)",
+		"TestHair-${F}-HairContacts.vply",
+		simulationTimeStep,
+		hairContactsSolver.get()
 	);
 
 	for (int i = 0; i < totalSimulationLoop; ++i) {
