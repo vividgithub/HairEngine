@@ -54,9 +54,9 @@ namespace HairEngine {
 
 			Eigen::Vector3f cellCountf = bound.diagonal().cwiseQuotient(expectedCellSize);
 			cellCount = {
-				std::ceil(cellCountf.x()),
-				std::ceil(cellCountf.y()),
-				std::ceil(cellCountf.z())
+				static_cast<int>(std::ceil(cellCountf.x())),
+				static_cast<int>(std::ceil(cellCountf.y())),
+				static_cast<int>(std::ceil(cellCountf.z()))
 			};
 
 			for (size_t i = 0; i < 3; ++i) {

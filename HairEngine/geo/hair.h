@@ -130,6 +130,15 @@ namespace HairEngine {
 			}
 
 			/**
+			 * Return the strand index of the segment
+			 * 
+			 * @return The strand index of the segment
+			 */
+			int strandIndex() const {
+				return p1->strandIndex;
+			}
+
+			/**
 			 * Constructor
 			 *
 			 * @param p1 The first particle pointer

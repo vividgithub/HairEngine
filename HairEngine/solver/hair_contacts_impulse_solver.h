@@ -2,7 +2,9 @@
 #include <algorithm>
 #include <iostream>
 #include <queue>
+#include <utility>
 
+#include "CompactNSearch.h"
 #include "VPly/vply.h"
 #include "../util/mathutil.h"
 #include "../old/finite_grid.h"
@@ -30,67 +32,79 @@ namespace HairEngine {
 		 * 
 		 * @param segmentKnnSolver The SegmentKNNSolver used for neighbour search, added it before this solver to 
 		 * build the knn acceleration structure.
+		 * @param creatingDistance The creating distance of contact spring 
+		 * @param breakingDistance The breaking distance of the contact spring
+		 * @param maxContactPerSegment The limitation of max contact per segment
 		 * @param kContactSpring The stiffness of the contact 
 		 */
-		HairContactsImpulseSolver(SegmentKNNSolver *segmentKnnSolver,float kContactSpring): 
-			segmentKnnSolver(segmentKnnSolver), kContactSpring(kContactSpring){}
+		HairContactsImpulseSolver(SegmentKNNSolver *segmentKnnSolver, float creatingDistance, float breakingDistance, int maxContactPerSegment, float kContactSpring): 
+			segmentKnnSolver(segmentKnnSolver), 
+			kContactSpring(kContactSpring),
+			creatingDistance(creatingDistance),
+			breakingDistance(breakingDistance),
+			breakingDistanceSquared(breakingDistance * breakingDistance),
+			maxContactPerSegment(maxContactPerSegment)
+		{}
 
 		void setup(const Hair& hair, const Eigen::Affine3f& currentTransform) override {
 			// Setup the usedBuffers, assign a individual used buffer for each thread to avoid race condition
-			for (int i = 0; i < ParallismUtility::getOpenMPMaxHardwareConcurrency(); ++i) {
-				usedBuffers.emplace_back(hair.nparticle, -1);
+			for (int i = 0; i < static_cast<int>(ParallismUtility::getOpenMPMaxHardwareConcurrency()); ++i) {
+				usedBuffers.emplace_back(hair.nsegment, -1);
 			}
 
 			// Setup the contact springs
-			for (int i = 0; i < hair.nparticle; ++i)
-				contactSprings.emplace_back();
+			HairEngine_AllocatorAllocate(contactSprings, hair.nsegment * maxContactPerSegment);
+
+			// Setup the ndirected and nundirected
+			ncontacts = std::vector<int>(hair.nsegment, 0);
+		}
+
+		void tearDown() override {
+			HairEngine_AllocatorDeallocate(contactSprings, hair->nsegment * maxContactPerSegment);
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
-			const auto r = segmentKnnSolver->getRadius();
-			const auto r2 = r * r;
 
-			// Erase all the distance larger the r
-			ParallismUtility::parallelFor(0, hair.nsegment, [this, &hair, r2](int idx1) {
-				auto & cs = contactSprings[idx1];
+			// Erase all the distance larger the r, don't parallel since we modify nundirected[_.idx2]
+			ParallismUtility::parallelForWithThreadIndex(0, hair.nsegment, [this, &hair] (int idx1, int threadId) {
+				const auto range = getContactSpringRange(idx1);
 				auto seg1 = hair.segments + idx1;
+				auto & usedBuffer = usedBuffers[threadId];
 
-				const auto removeEnd = std::remove_if(cs.begin(), cs.end(), [seg1, r2, &hair](const ContactSpringInfo & _) -> bool {
-					return (seg1->midpoint() - (hair.segments + _.idx2)->midpoint()).squaredNorm() > r2;
+				std::fill(usedBuffer.begin(), usedBuffer.end(), -1);
+
+				const auto removeEnd = std::remove_if(range.first, range.second, [this, seg1, &hair](const ContactSpringInfo & _) -> bool {
+					return (seg1->midpoint() - (hair.segments + _.idx2)->midpoint()).squaredNorm() > breakingDistanceSquared;
 				});
-				cs.erase(removeEnd, cs.end());
-			});
 
-			// Sum up the force, since the newly created spring yield 0 force
-			// TODO: Add parallism
-			for (int idx1 = 0; idx1 < hair.nsegment; ++idx1) {
-				for (const auto & _ : contactSprings[idx1]) {
-					const Eigen::Vector3f springForce = MathUtility::massSpringForce4f((hair.segments + idx1)->midpoint(), 
-						(hair.segments + _.idx2)->midpoint(), kContactSpring, _.l0).segment<3>(0);
+				// Update the nContacts now
+				ncontacts[idx1] = static_cast<int>(removeEnd - range.first);
 
-					(hair.particles + idx1)->impulse += springForce;
-					(hair.particles + _.idx2)->impulse -= springForce;
+				// Compute the force of all undeleted spring and set the usedBuffer
+				for (auto _ = range.first; _ != removeEnd; ++_) {
+					auto seg2 = hair.segments + _->idx2;
+					const Eigen::Vector3f springForce = MathUtility::massSpringForce(seg1->midpoint(), seg2->midpoint(), kContactSpring, _->l0);
+
+					syncLock.lock();
+					seg1->p1->impulse += springForce;
+					seg1->p2->impulse += springForce;
+					seg2->p1->impulse -= springForce;
+					seg2->p2->impulse -= springForce;
+					syncLock.unlock();
+
+					usedBuffer[_->idx2] = idx1;
 				}
-			}
 
-			// Add additional
-			ParallismUtility::parallelForWithThreadIndex(0, hair.nsegment, [this, &hair](int idx1, int threadID) {
-				auto & usedBuffer = usedBuffers[threadID];
-				auto & cs = contactSprings[idx1]; 
-				const auto seg1 = hair.segments + idx1;
+				// Add addtional spring
+				const int nneeds = std::min(segmentKnnSolver->getNNeighbourForSegment(idx1), maxContactPerSegment - ncontacts[idx1]);
+				for (int i = 0; i < nneeds; ++i) {
+					const int idx2 = segmentKnnSolver->getNeighbourIndexForSegment(idx1, i);
+					const auto seg2 = hair.segments + idx2;
 
-				// Add others to the used buffer
-				for (const auto & _ : cs)
-					usedBuffer[_.idx2] = idx1;
-
-				const auto nConnection = segmentKnnSolver->getNNeighbourForSegment(idx1);
-				for (int i = 0; i < nConnection; ++i) {
-					const auto idx2 = segmentKnnSolver->getNeighbourIndexForSegment(idx1, i);
-
-					// To remove duplicate adding for pair (idx1, idx2) and ensure the spring is not created previously
-					if (idx1 < idx2 && usedBuffer[idx2] != idx1) {
-						const auto seg2 = hair.segments + idx2;
-						cs.emplace_back(idx2, (seg1->midpoint() - seg2->midpoint()).norm());
+					if (usedBuffer[idx2] != idx1 && seg2->strandIndex() != seg1->strandIndex()) {
+						const float l02 = (seg2->midpoint() - seg1->midpoint()).squaredNorm();
+						if (l02 < creatingDistance)
+							std::allocator<ContactSpringInfo>().construct(range.first + (ncontacts[idx1]++), idx2, std::sqrt(l02));
 					}
 				}
 			});
@@ -107,8 +121,26 @@ namespace HairEngine {
 
 		SegmentKNNSolver *segmentKnnSolver;
 		float kContactSpring; ///< The stiffness of the contact spring
-		std::vector<std::vector<ContactSpringInfo>> contactSprings; ///< Index array of the contacts spring
+
+		ContactSpringInfo *contactSprings; ///< Index array of the contacts spring
 		std::vector<std::vector<int>> usedBuffers; ///< Used in iteration to indicate whether the spring has been created
+		std::vector<int> ncontacts; ///< How many contact spring is stored in the range (contactSprings[i * maxContactPerSegment], contactSpring[(i+1) * maxContactPerSegment] )
+
+		float creatingDistance;
+		float breakingDistance;
+		float breakingDistanceSquared;
+		int maxContactPerSegment;
+
+		CompactNSearch::Spinlock syncLock; ///< Use to sync the thread
+
+		std::pair<ContactSpringInfo *, ContactSpringInfo *> getContactSpringRange(int segmentIndex) const {
+			std::pair<ContactSpringInfo *, ContactSpringInfo *> ret;
+			ret.first = contactSprings + segmentIndex * maxContactPerSegment;;
+			ret.second = ret.first + ncontacts[segmentIndex];
+
+			return ret;
+		}
+
 	};
 
 	class HairContactsImpulseSolverOld: public Solver {
@@ -128,7 +160,7 @@ namespace HairEngine {
 
 			HairEngine_AllocatorAllocate(contactSprings, hair.nsegment * maxContactPerSegment);
 
-			for (int i = 0; i < ParallismUtility::getOpenMPMaxHardwareConcurrency(); ++i) {
+			for (int i = 0; i < static_cast<int>(ParallismUtility::getOpenMPMaxHardwareConcurrency()); ++i) {
 				usedBuffers.emplace_back(hair.nsegment, -1);
 			}
 
@@ -162,6 +194,7 @@ namespace HairEngine {
 			/*
 			* Grid insertion bounding box update
 			*/
+			std::cout << "HairContactsImpulseSolverOld: " << "Grid insertion..." << std::endl;
 			Eigen::AlignedBox3f bound(hair.particles[0].pos);
 			for (int i = 1; i < hair.nparticle; ++i)
 				bound.extend(hair.particles[i].pos);
@@ -200,7 +233,7 @@ namespace HairEngine {
 			}
 
 			// Compute ds and dInvs
-			ParallismUtility::parallelFor(0, hair.nsegment, [this](int i) {
+			ParallismUtility::parallelFor(0, hair.nsegment, [this, &hair] (int i) {
 				ds[i] = hair.segments[i].d();
 				dInvs[i] = ds[i].cwiseInverse();
 			});
@@ -289,6 +322,7 @@ namespace HairEngine {
 			* Solve hair contacts
 			*/
 
+			std::cout << "HairContactsImpulseSolverOld: " << "Solve hair contacts..." << std::endl;
 			/*
 			* For each segment pairs (currently exisits), use "compute()" to get the current length.
 			* Clear all the segment with distance larger than the breaking distance
@@ -319,7 +353,7 @@ namespace HairEngine {
 					}
 				}
 
-				ndirected[idx1] = deletedEnd - contactSpringsBeginPtr;
+				ndirected[idx1] = static_cast<int>(deletedEnd - contactSpringsBeginPtr);
 			}
 
 			auto & segmentCheck = usedBuffers[0]; 
@@ -405,8 +439,8 @@ namespace HairEngine {
 					auto seg2 = hair.segments + idx2;
 
 					Eigen::Vector3f force = MathUtility::massSpringForce(
-						MathUtility::lerp(l->t1, seg1->p1->pos, seg1->p2->pos),
-						MathUtility::lerp(l->t2, seg2->p1->pos, seg2->p2->pos),
+						MathUtility::lerp(seg1->p1->pos, seg1->p2->pos, l->t1),
+						MathUtility::lerp(seg2->p1->pos, seg2->p2->pos, l->t2),
 						kContact, l->l0
 					);
 
@@ -450,7 +484,7 @@ namespace HairEngine {
 			float t1, t2; ///< The interpolation point
 			float l0; ///< The rest length when creating 
 
-			ContactSpringInfo(int idx2, float l0) : idx2(idx2), l0(l0) {}
+			ContactSpringInfo(int idx2, float t1, float t2, float l0) : idx2(idx2), t1(t1), t2(t2), l0(l0) {}
 		};
 
 		ContactSpringInfo *getContactSpringsBeginPtr(int segmentIndex) const {
@@ -481,31 +515,33 @@ namespace HairEngine {
 			Visualizer(directory, filenameTemplate, timestep), hairContactsImpulseSolver(hairContactsImpulseSolver) {}
 
 		void visualize(std::ostream& os, Hair& hair, const IntegrationInfo& info) override {
-			int ncontacts = 0;
+			int totalContacts = 0;
 
 			for (int idx1 = 0; idx1 < hair.nsegment; ++idx1) {
-				ncontacts += hairContactsImpulseSolver->contactSprings[idx1].size();
+				totalContacts += static_cast<int>(hairContactsImpulseSolver->ncontacts[idx1]);
+				auto range = hairContactsImpulseSolver->getContactSpringRange(idx1);
 
-				for (const auto & _ : hairContactsImpulseSolver->contactSprings[idx1]) {
+				for (auto _ = range.first; _ != range.second; ++_) {
 
 					std::array<Eigen::Vector3f, 2> midpoints = {
 						(hair.segments + idx1)->midpoint(),
-						(hair.segments + _.idx2)->midpoint()
+						(hair.segments + _->idx2)->midpoint()
 					};
 
 					VPly::writeLine(
 						os,
 						EigenUtility::toVPlyVector3f(midpoints[0]),
 						EigenUtility::toVPlyVector3f(midpoints[1]),
-						VPly::VPlyFloatAttr("l0", _.l0),
+						VPly::VPlyFloatAttr("l0", _->l0),
+						VPly::VPlyFloatAttr("l", (midpoints[1] - midpoints[0]).norm()),
 						VPly::VPlyIntAttr("fromid", idx1),
-						VPly::VPlyIntAttr("toid", _.idx2)
+						VPly::VPlyIntAttr("toid", _->idx2)
 					);
 				}
 			}
 
-			std::cout << "HairContactsImpulseSolverVisualizer: Total contacts=" << ncontacts * 2 
-				<< ", Average contacts per particle=" << static_cast<float>(ncontacts * 2) / hair.nparticle <<std::endl;
+			std::cout << "HairContactsImpulseSolverVisualizer: Total contacts=" << totalContacts * 2 
+				<< ", Average contacts per particle=" << static_cast<float>(totalContacts * 2) / hair.nparticle <<std::endl;
 		}
 
 	HairEngine_Protected:
