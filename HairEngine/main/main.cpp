@@ -199,7 +199,7 @@ void validSolverCorretness(int resampleRate = -1) {
 
 	// auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolverOld>(0.001f, 0.0023f, 0.0051f, 350, 15, 1000.0f);
 	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0010f);
-	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0010f, 0.0025f, 15, 500.0f);
+	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0010f, 0.0035f, 10, 500.0f);
 
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
 	//auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
@@ -241,9 +241,6 @@ void validSolverCorretness(int resampleRate = -1) {
 	}
 
 	cout << "Simulation end..." << endl;
-
-	char c;
-	cin >> c;
 }
 
 void testSDFReading(const std::string & sdfPath) {
