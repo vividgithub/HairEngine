@@ -50,6 +50,7 @@ namespace HairEngine {
 		friend class HairContactsAndCollisionImpulseSolverVisualizer;
 		friend class HairContactsImpulseSolverOld;
 		friend class CollisionImpulseSolver;
+		friend class HairContactsImpulseSolver;
 		
 	HairEngine_Public:
 		struct Strand;

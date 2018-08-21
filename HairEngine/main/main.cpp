@@ -17,6 +17,7 @@
 #include "../solver/segment_knn_solver.h"
 #include "../solver/segment_knn_solver_visualizer.h"
 #include "../solver/hair_contacts_impulse_solver.h"
+#include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -227,11 +228,10 @@ void validSolverCorretness(int resampleRate = -1) {
 		massSpringSolver.get()
 	);
 
-	auto hairContactsVisualizer = integrator.addSolver<HairContactsImpulseSolverVisualizer>(
+	auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
 		R"(C:\Users\VividWinPC1\Desktop\HairData)",
 		"TestHair-${F}-HairContacts.vply",
-		simulationTimeStep,
-		hairContactsSolver.get()
+		simulationTimeStep
 	);
 
 	for (int i = 0; i < totalSimulationLoop; ++i) {

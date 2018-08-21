@@ -1,3 +1,5 @@
+#pragma once
+
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -14,8 +16,6 @@
 
 namespace HairEngine {
 
-	class HairContactsImpulseSolverVisualizer;
-
 	/**
 	 * The solver that resolve hair contacts by using impulse based spring forces 
 	 * in semi implicit euler. It will add the force to the "im" property of the particles.
@@ -24,7 +24,7 @@ namespace HairEngine {
 	 */
 	class HairContactsImpulseSolver: public Solver {
 
-	friend class HairContactsAndCollisionImpulseSolverVisualizer;
+		friend class HairContactsAndCollisionImpulseSolverVisualizer;
 
 	HairEngine_Public:
 		/**

@@ -48,7 +48,7 @@ namespace HairEngine {
 		 */
 		int getNNeighbourForSegment(int index) const {
 			const auto & ps = nsearch->point_set(0);
-			return ps.n_neighbors(0, index);
+			return static_cast<int>(ps.n_neighbors(0, index));
 		}
 
 		/**

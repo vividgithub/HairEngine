@@ -5,7 +5,7 @@
 
 #include "integration_info.h"
 #include "segment_knn_solver.h"
-#include "HairEngine/HairEngine/util/mathutil.h"
+#include "../util/mathutil.h"
 
 namespace HairEngine {
 	class CollisionImpulseSolver: public Solver {
@@ -38,7 +38,7 @@ namespace HairEngine {
 				const auto range = getCollisionRange(idx1);
 				auto seg1 = hair.segments + idx1;
 
-				const auto & removePredicate = [&hair, &info, seg1](const CollisionInfo & _) -> bool {
+				const auto & removePredicate = [this, &hair, &info, seg1](const CollisionInfo & _) -> bool {
 					const auto seg2 = hair.segments + _.idx2;
 
 					const Eigen::Vector3f d = this->predicitedD(seg1, seg2, _.t1, _.t2, info.t);
@@ -93,7 +93,7 @@ namespace HairEngine {
 							continue;
 
 						//Collision happen and added
-						std::allocator<CollisionInfo>().construct(range.first + (ncollision[idx1]++), idx2, ts.first, ts.second, l0);
+						std::allocator<CollisionInfo>().construct(range.first + (ncollision[idx1]++), idx2, ts.first, ts.second, dn, l0);
 					}
 				}
 			});
