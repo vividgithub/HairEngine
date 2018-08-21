@@ -47,7 +47,7 @@ namespace HairEngine {
 		friend class SegmentKNNSolver;
 		friend class SegmentKNNSolverVisualizer;
 		friend class HairContactsImpulseSolver;
-		friend class HairContactsImpulseSolverVisualizer;
+		friend class HairContactsAndCollisionImpulseSolverVisualizer;
 		friend class HairContactsImpulseSolverOld;
 		friend class CollisionImpulseSolver;
 		

@@ -9,6 +9,9 @@
 
 namespace HairEngine {
 	class CollisionImpulseSolver: public Solver {
+
+		friend class HairContactsAndCollisionImpulseSolverVisualizer;
+
 	HairEngine_Public:
 
 		/**
