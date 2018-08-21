@@ -28,6 +28,7 @@ namespace HairEngine {
 	class SelleMassSpringImplicitSolver;
 	class SegmentKNNSolver;
 	class SegmentKNNSolverVisualizer;
+	class HairContactsImpulseSolver;
 
 	std::ostream & operator<<(std::ostream & os, const Hair & hair);
 
@@ -44,6 +45,9 @@ namespace HairEngine {
 		friend class SelleMassSpringImplicitSolver;
 		friend class SegmentKNNSolver;
 		friend class SegmentKNNSolverVisualizer;
+		friend class HairContactsImpulseSolver;
+		friend class HairContactsImpulseSolverVisualizer;
+		friend class HairContactsImpulseSolverOld;
 		
 	HairEngine_Public:
 		struct Strand;
@@ -123,6 +127,15 @@ namespace HairEngine {
 			 */
 			Eigen::Vector3f midpoint() const {
 				return 0.5f * (p2->pos + p1->pos);
+			}
+
+			/**
+			 * Return the strand index of the segment
+			 * 
+			 * @return The strand index of the segment
+			 */
+			int strandIndex() const {
+				return p1->strandIndex;
 			}
 
 			/**
