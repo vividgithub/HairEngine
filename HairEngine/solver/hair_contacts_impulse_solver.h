@@ -81,19 +81,19 @@ namespace HairEngine {
 				ncontacts[idx1] = static_cast<int>(removeEnd - range.first);
 
 				// Compute the force of all undeleted spring and set the usedBuffer
+				Eigen::Vector3f force = Eigen::Vector3f::Zero();
+
 				for (auto _ = range.first; _ != removeEnd; ++_) {
 					auto seg2 = hair.segments + _->idx2;
-					const Eigen::Vector3f springForce = MathUtility::massSpringForce(seg1->midpoint(), seg2->midpoint(), kContactSpring, _->l0);
-
-					syncLock.lock();
-					seg1->p1->impulse += springForce;
-					seg1->p2->impulse += springForce;
-					seg2->p1->impulse -= springForce;
-					seg2->p2->impulse -= springForce;
-					syncLock.unlock();
+					force += MathUtility::massSpringForce(seg1->midpoint(), seg2->midpoint(), kContactSpring, _->l0);
 
 					usedBuffer[_->idx2] = idx1;
 				}
+
+				syncLock.lock();
+				seg1->p1->impulse += force;
+				seg1->p2->impulse += force;
+				syncLock.unlock();
 
 				// Add addtional spring
 				const int nneeds = std::min(segmentKnnSolver->getNNeighbourForSegment(idx1), maxContactPerSegment - ncontacts[idx1]);
