@@ -195,19 +195,20 @@ void validSolverCorretness(int resampleRate = -1) {
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, Affine3f::Identity());
 
-
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 
 	// auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolverOld>(0.001f, 0.0023f, 0.0051f, 350, 15, 1000.0f);
-	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0010f);
+	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.005f);
 	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0010f, 0.0035f, 10, 500.0f);
 
+	auto collisionImpulseSolver = integrator.addSolver<CollisionImpulseSolver>(segmentKnnSolver.get(), 15, 2500.0f, 6);
+
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
-	//auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
-	//	sdfFilePath, 
-	//	Eigen::Affine3f::Identity(), 
-	//	SolidCollisionSolverBase::Configuration(0.015f, 6.0)
-	//	);
+	auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
+		R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Geometric Collision 1\Collision.sdf2)", 
+		Eigen::Affine3f::Identity(), 
+		SolidCollisionSolverBase::Configuration(0.015f, 6.0)
+		);
 	
 	integrator.addSolver<PositionCommiter>();
 
@@ -231,8 +232,17 @@ void validSolverCorretness(int resampleRate = -1) {
 	auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
 		R"(C:\Users\VividWinPC1\Desktop\HairData)",
 		"TestHair-${F}-HairContacts.vply",
-		simulationTimeStep
+		simulationTimeStep,
+		hairContactsSolver.get(),
+		collisionImpulseSolver.get()
 	);
+
+	//auto knnVisualizer = integrator.addSolver<SegmentKNNSolverVisualizer>(
+	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
+	//	"TestHair-${F}-HairContacts.vply",
+	//	simulationTimeStep,
+	//	segmentKnnSolver.get()
+	//);
 
 	for (int i = 0; i < totalSimulationLoop; ++i) {
 		cout << "Simulation Frame " << i + 1 << "..." << endl;

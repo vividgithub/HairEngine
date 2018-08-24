@@ -548,7 +548,7 @@ namespace HairEngine {
 			if (outD)
 				*outD = d * d.transpose();
 
-			return (k * (s * l - l0)) * d;
+			return (k * (l - s * l0)) * d;
 		}
 
 		/**

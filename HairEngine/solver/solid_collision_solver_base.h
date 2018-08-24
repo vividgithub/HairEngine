@@ -214,17 +214,19 @@ namespace HairEngine {
 
 	HairEngine_Protected:
 
+		using Affine3fUnaligned = Eigen::Transform<float, 3, Eigen::Affine, Eigen::DontAlign>;
+
 		/*
 		 * Two transform to transform the world and local coordinate. We use worldToLocalTransform to transform a point
 		 * in the world space to the local space for distance querying. And we use the localToWorldTransform to transform
 		 * it back and handling the speed and velocities.
 		 */
-		Eigen::Affine3f localToWorldTransform, worldToLocalTransform;
+		Affine3fUnaligned localToWorldTransform, worldToLocalTransform;
 		Eigen::Matrix3f localToWorldLinear, worldToLocalLinear;
 		Eigen::Vector3f localToWorldTranslation, worldToLocalTranslation;
 
 		//Use for caculating the velocity
-		Eigen::Affine3f previousLocalToWorldTransform;
+		Affine3fUnaligned previousLocalToWorldTransform;
 
 		//The time interval from the last transform to current transform
 		float deltaTime;
