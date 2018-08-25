@@ -2,6 +2,7 @@
 
 #include <numeric>
 #include <functional>
+#include <array>
 #include <chrono>
 
 #include "../solver/integration_info.h"
@@ -55,6 +56,7 @@ namespace HairEngine {
 			bool enableStrainLimiting; ///< Enable strain limiting to protect the inextensibility of the hair
 			float colinearMaxDegree; ///< We will insert additional virtual particles if two adjacent line segments are "nearly" colinear, we treat the two adjacent line segment colinear is the included angle is less than colinearMaxDegree
 			float mass; ///< The mass of the single hair strand
+			float strainLimitingTolerance; ///< The tolerance for strain limiting
 
 			/**
 			 * Constructor
@@ -67,10 +69,12 @@ namespace HairEngine {
 				float damping,
 				bool enableStrainLimiting,
 				float colinearMaxDegree,
-				float mass
+				float mass,
+				float strainLimitingTolerance
 			): stretchStiffness(stretchStiffness), bendingStiffness(bendingStiffness), 
 			torsionStiffness(torsionStiffness), altitudeStiffness(altitudeStiffness), damping(damping),
-			enableStrainLimiting(enableStrainLimiting), colinearMaxDegree(colinearMaxDegree), mass(mass) {}
+			enableStrainLimiting(enableStrainLimiting), colinearMaxDegree(colinearMaxDegree), mass(mass), 
+			strainLimitingTolerance(strainLimitingTolerance) {}
 		};
 
 		/**
@@ -82,7 +86,7 @@ namespace HairEngine {
 			stretchStiffness(conf.stretchStiffness), bendingStiffness(conf.bendingStiffness), 
 			torsionStiffness(conf.torsionStiffness), altitudeStiffness(conf.altitudeStiffness), damping(conf.damping),
 			enableStrainLimiting(conf.enableStrainLimiting), colinearMaxRad(conf.colinearMaxDegree * 3.141592f / 180.0f), 
-			mass(conf.mass) {}
+			mass(conf.mass), strainLimitingTolerance(conf.strainLimitingTolerance) {}
 
 		void setup(const Hair& hair, const Eigen::Affine3f & currentTransform) override {
 			// Inverse the transform
@@ -221,56 +225,107 @@ namespace HairEngine {
 				nspringInStrand[si] = nspring - nspringInStrand[si];
 				springStartIndexForStrand[si] = (si > 0) ? springStartIndexForStrand[si - 1] + nspringInStrand[si - 1] : 0;
 			}
+
+			// Setup the strain limiting structure
+			HairEngine_AllocatorAllocate(strainLimitingSegmentPairForStrand, nparticle);
+			HairEngine_AllocatorAllocate(nStrainLimitingSegmentPairForStrand, nstrand);
+			HairEngine_AllocatorAllocate(strainLimitingSegmentStartIndexForStrand, nstrand);
+
+			for (int si = 0; si < nstrand; ++si) {
+				int endIndex = strainLimitingSegmentStartIndexForStrand[si] = 
+					(si > 0) ? strainLimitingSegmentStartIndexForStrand[si - 1] + nStrainLimitingSegmentPairForStrand[si - 1] : 0;
+
+				int idx1 = particleStartIndexForStrand[si];
+				Hair::Particle::Ptr par1 = p(idx1);
+
+				for (int idx2 = particleStartIndexForStrand[si] + 1; idx2 < particleStartIndexForStrand[si] + nparticleInStrand[si]; ++idx2) {
+
+					auto par2 = p(idx2);
+
+					std::allocator<StrainLimtingPair>().construct(
+						strainLimitingSegmentPairForStrand + (endIndex++),
+						idx1, idx2,
+						(par2->pos - par1->pos).norm()
+					);
+					
+					if (isNormalParticle(idx2)) {
+						par1 = par2;
+						idx1 = idx2;
+					}
+				}
+
+				nStrainLimitingSegmentPairForStrand[si] = endIndex - strainLimitingSegmentStartIndexForStrand[si];
+			}
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
-				pos1[i] = par->pos;
-				vel1[i] = par->vel;
-			});
-
-			const auto startIntegration = std::chrono::high_resolution_clock::now();
-			integrate(pos1, vel1, vel2, info);
-			const auto endIntegration = std::chrono::high_resolution_clock::now();
-
-			std::chrono::duration<double> diff = endIntegration - startIntegration;
-			integrationTime = diff.count();
-
-			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
-				par->vel = vel2[i];
-
-				// Only commit the position of the virtual particles
-				if (isVirtualParticle(i))
-					par->pos += info.t * par->vel;
-			});
-
-			//float t_2 = info.t / 2.0f;
-
-			//// Store the position and velocity into buffer
-			//mapParticle(false, [this](Hair::Particle::Ptr par, int i) {
+			//mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 			//	pos1[i] = par->pos;
 			//	vel1[i] = par->vel;
 			//});
 
-			//// First integration
-			//integrate(pos1, vel1, vel2, t_2);
+			//const auto startIntegration = std::chrono::high_resolution_clock::now();
+			//integrate(pos1, vel1, vel2, info);
+			//const auto endIntegration = std::chrono::high_resolution_clock::now();
 
-			//// Strain limiting
-			//// TODO: Strain limiting
+			//std::chrono::duration<double> diff = endIntegration - startIntegration;
+			//integrationTime = diff.count();
 
-			//// Compute middle properties
-			//mapParticle(false, [this, t_2](Hair::Particle::Ptr par, int i) {
-			//	pos2[i] = pos1[i] + vel2[i] * t_2; // pos2 is stored the middle position
+			//mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
+			//	par->vel = vel2[i];
+
+			//	// Only commit the position of the virtual particles
+			//	if (isVirtualParticle(i))
+			//		par->pos += info.t * par->vel;
 			//});
 
-			//// Second integration
-			//integrate(pos2, vel2, vel3, t_2);
+			float t_2 = info.t / 2.0f;
 
-			//// Update the final velocity
-			//mapParticle(false, [this](Hair::Particle::Ptr par, int i) {
-			//	par->vel += 2.0f * (vel3[i] - vel2[i]);
-			//});
+			std::array<float, 3> intps = { 0.0f, 0.5f, 1.0f };
+			auto splitInfos = info.lerp(intps.begin(), intps.end());
+
+			// Store the position and velocity into buffer
+			mapParticle(true, [this] (Hair::Particle::Ptr par, int i) {
+				pos1[i] = par->pos;
+				vel1[i] = par->vel;
+			});
+
+			// First integration
+			integrate(pos1, vel1, vel2, splitInfos[0]);
+
+			// Compute middle properties
+			mapParticle(true, [this, t_2] (Hair::Particle::Ptr par, int i) {
+				pos2[i] = pos1[i] + vel2[i] * t_2; // pos2 is stored the middle position
+			});
+
+			// Strain limiting
+			mapStrand(true, [this, t_2] (int si) {
+				auto startPtr = strainLimitingSegmentPairForStrand + strainLimitingSegmentStartIndexForStrand[si];
+
+				for (int i = 0; i < nStrainLimitingSegmentPairForStrand[si]; ++i) {
+					const auto & _ = startPtr + i;
+
+					float l2 = (p(_->idx2)->pos - p(_->idx1)->pos).norm();
+					if (l2 > _->l0 * strainLimitingTolerance) {
+						const Eigen::Vector3f fixedPos = pos2[_->idx1] + (pos2[_->idx2] - pos2[_->idx1]) * (_->l0 * strainLimitingTolerance / l2);
+						// pos2[_->idx2] = fixedPos;
+						vel2[_->idx2] = (fixedPos - pos1[_->idx2]) / t_2;
+					}
+				}
+			});
+
+			// Second integration
+			integrate(pos2, vel2, vel3, splitInfos[1]);
+
+			// Update the final velocity
+			mapParticle(true, [this, &info] (Hair::Particle::Ptr par, int i) {
+				par->vel = vel3[i];
+
+				if (isVirtualParticle(i)) {
+					par->pos += info.t * par->vel;
+				}
+			});
 		}
 
 		void tearDown() override {
@@ -283,6 +338,10 @@ namespace HairEngine {
 			HairEngine_AllocatorDeallocate(springs, nparticle * 3);
 			HairEngine_AllocatorDeallocate(nspringInStrand, nstrand);
 			HairEngine_AllocatorDeallocate(springStartIndexForStrand, nstrand);
+
+			HairEngine_AllocatorDeallocate(strainLimitingSegmentPairForStrand, nparticle);
+			HairEngine_AllocatorDeallocate(nStrainLimitingSegmentPairForStrand, nstrand);
+			HairEngine_AllocatorDeallocate(strainLimitingSegmentStartIndexForStrand, nstrand);
 
 			HairEngine_SafeDeleteArray(pos1);
 			HairEngine_SafeDeleteArray(pos2);
@@ -325,6 +384,7 @@ namespace HairEngine {
 		bool enableStrainLimiting;
 		float colinearMaxRad;
 		float mass;
+		float strainLimitingTolerance;
 
 		const Hair *hairPtr;
 
@@ -354,6 +414,24 @@ namespace HairEngine {
 		
 		/// The starting index in "particleIndices" for strand
 		int *particleStartIndexForStrand = nullptr;
+
+		/// Store all pre computed strand limiting
+		struct StrainLimtingPair {
+			int idx1, idx2; ///< Two strain limiting particle index
+			float l0; ///< The rest length of the strain limiting edge
+
+			StrainLimtingPair(int idx1, int idx2, float l0):
+				idx1(idx1), idx2(idx2), l0(l0) {}
+		};
+
+		/// The strain limting segment pair array
+		StrainLimtingPair *strainLimitingSegmentPairForStrand = nullptr;
+
+		/// Number of strain limiting pair stored in a strand
+		int *nStrainLimitingSegmentPairForStrand = nullptr;
+
+		/// The begin index for strain limiting segment in the "strainLimitingSegmentPairForStrand" for strand
+		int *strainLimitingSegmentStartIndexForStrand = nullptr;
 
 		Eigen::Vector3f *pos1 = nullptr, *pos2 = nullptr; ///< Position buffers
 		Eigen::Vector3f *vel1 = nullptr, *vel3 = nullptr, *vel2 = nullptr; ///< Velocity difference buffers
