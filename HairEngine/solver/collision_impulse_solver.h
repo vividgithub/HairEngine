@@ -27,7 +27,6 @@ namespace HairEngine {
 			segmentKnnSolver(segmentKnnSolver), 
 			kCollision(kCollision), 
 			maxCollisionPerSegment(maxCollisionPerSegment),
-			hairWidth(hairWidth),
 			maxCollisionForceCount(maxCollisionForceCount) {}
 
 		void setup(const Hair& hair, const Eigen::Affine3f& currentTransform) override {
