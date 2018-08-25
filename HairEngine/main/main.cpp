@@ -17,6 +17,7 @@
 #include "../solver/segment_knn_solver.h"
 #include "../solver/segment_knn_solver_visualizer.h"
 #include "../solver/hair_contacts_impulse_solver.h"
+#include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -183,32 +184,32 @@ void testDifferentSelleMassSpringSolverSpeed() {
 
 
 void validSolverCorretness(int resampleRate = -1) {
-	const float simulationTimeStep = 3e-2f; // The time interval for dumping a frame
-	const float integrationTimeStep = 5e-3f; // The time for true integration
+	const float simulationTimeStep = 1.0f / 24.0f; // The time interval for dumping a frame
+	const float integrationTimeStep = 1.0f / 120.0f; // The time for true integration
 	const int totalSimulationLoop = 250; // The simulation loop
 
 	cout << "Reading the hair..." << endl;
-	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Hair Contacts 1\Hair2.hair)";
+	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Geometric Collision 1\Hair.hair)";
 	const auto hair = make_shared<Hair>(Hair(hairFilePath).resample(resampleRate >= 1 ? resampleRate : 1));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, Affine3f::Identity());
 
-
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 
-	// auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolverOld>(0.001f, 0.0023f, 0.0051f, 350, 15, 1000.0f);
-	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0010f);
+	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0025f);
 	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0010f, 0.0035f, 10, 500.0f);
 
+	auto collisionImpulseSolver = integrator.addSolver<CollisionImpulseSolver>(segmentKnnSolver.get(), 15, 2500.0f, 6);
+
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
-	//auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
-	//	sdfFilePath, 
-	//	Eigen::Affine3f::Identity(), 
-	//	SolidCollisionSolverBase::Configuration(0.015f, 6.0)
-	//	);
+	auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
+		R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Geometric Collision 1\Collision.sdf2)", 
+		Eigen::Affine3f::Identity(), 
+		SolidCollisionSolverBase::Configuration(0.015f, 6.0)
+	); 
 	
-	integrator.addSolver<PositionCommiter>();
+	// integrator.addSolver<PositionCommiter>();
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
@@ -220,19 +221,27 @@ void validSolverCorretness(int resampleRate = -1) {
 		massSpringSolver.get()
 		);
 
-	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
-		R"(C:\Users\VividWinPC1\Desktop\HairData)",
-		"TestHair-${F}-Spring.vply",
-		simulationTimeStep,
-		massSpringSolver.get()
-	);
+	//auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
+	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
+	//	"TestHair-${F}-Spring.vply",
+	//	simulationTimeStep,
+	//	massSpringSolver.get()
+	//);
 
-	auto hairContactsVisualizer = integrator.addSolver<HairContactsImpulseSolverVisualizer>(
-		R"(C:\Users\VividWinPC1\Desktop\HairData)",
-		"TestHair-${F}-HairContacts.vply",
-		simulationTimeStep,
-		hairContactsSolver.get()
-	);
+	//auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
+	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
+	//	"TestHair-${F}-HairContacts.vply",
+	//	simulationTimeStep,
+	//	hairContactsSolver.get(),
+	//	collisionImpulseSolver.get()
+	//);
+
+	//auto knnVisualizer = integrator.addSolver<SegmentKNNSolverVisualizer>(
+	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
+	//	"TestHair-${F}-HairContacts.vply",
+	//	simulationTimeStep,
+	//	segmentKnnSolver.get()
+	//);
 
 	for (int i = 0; i < totalSimulationLoop; ++i) {
 		cout << "Simulation Frame " << i + 1 << "..." << endl;

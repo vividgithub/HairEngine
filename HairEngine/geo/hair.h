@@ -16,6 +16,7 @@
 #include "../util/fileutil.h"
 #include "../precompiled/precompiled.h"
 #include "../util/eigenutil.h"
+#include "HairEngine/HairEngine/util/mathutil.h"
 
 namespace HairEngine {
 
@@ -46,8 +47,10 @@ namespace HairEngine {
 		friend class SegmentKNNSolver;
 		friend class SegmentKNNSolverVisualizer;
 		friend class HairContactsImpulseSolver;
-		friend class HairContactsImpulseSolverVisualizer;
+		friend class HairContactsAndCollisionImpulseSolverVisualizer;
 		friend class HairContactsImpulseSolverOld;
+		friend class CollisionImpulseSolver;
+		friend class HairContactsImpulseSolver;
 		
 	HairEngine_Public:
 		struct Strand;
@@ -136,6 +139,26 @@ namespace HairEngine {
 			 */
 			int strandIndex() const {
 				return p1->strandIndex;
+			}
+
+			/**
+			 * Get the lerp position p1->pos + (p2->pos - p1->pos) * t
+			 * 
+			 * @param t The interpolation weight 
+			 * @return The interpolation point
+			 */
+			Eigen::Vector3f lerpPos(float t) const {
+				return MathUtility::lerp(p1->pos, p2->pos, t);
+			}
+
+			/**
+			 * Get the lerp velocity p1->vel + (p2->vel - p1->vel) * t
+			 * 
+			 * @param t The interpolation weight
+			 * @return The interpolation velocity
+			 */
+			Eigen::Vector3f lerpVel(float t) const {
+				return MathUtility::lerp(p1->vel, p2->vel, t);
 			}
 
 			/**
