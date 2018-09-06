@@ -183,33 +183,33 @@ void testDifferentSelleMassSpringSolverSpeed() {
 }
 
 
-void validSolverCorretness(int resampleRate = -1) {
+void validSolverCorretness() {
 	const float simulationTimeStep = 1.0f / 24.0f; // The time interval for dumping a frame
 	const float integrationTimeStep = 1.0f / 120.0f; // The time for true integration
 	const int totalSimulationLoop = 250; // The simulation loop
 
 	cout << "Reading the hair..." << endl;
-	const string hairFilePath = R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Geometric Collision 1\Hair.hair)";
-	const auto hair = make_shared<Hair>(Hair(hairFilePath).resample(resampleRate >= 1 ? resampleRate : 1));
+	const auto hair = make_shared<Hair>(Hair(R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Resources\Models\Feamle 04 Retop\Hair\Straight-50000-p25.hair)").resample(5432));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, Affine3f::Identity());
 
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 
-	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0025f);
-	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0010f, 0.0035f, 10, 500.0f);
+	//auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.0025f);
+	//auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0010f, 0.0035f, 10, 500.0f);
 
-	auto collisionImpulseSolver = integrator.addSolver<CollisionImpulseSolver>(segmentKnnSolver.get(), 15, 2500.0f, 6);
+	//auto collisionImpulseSolver = integrator.addSolver<CollisionImpulseSolver>(segmentKnnSolver.get(), 15, 2500.0f, 6);
 
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringCommonConfiguration);
-	auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
-		R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Geometric Collision 1\Collision.sdf2)", 
-		Eigen::Affine3f::Identity(), 
-		SolidCollisionSolverBase::Configuration(0.015f, 6.0)
-	); 
+
+	//auto soliderCollisionSolver = integrator.addSolver<SignedDistanceFieldSolidCollisionSolver>(
+	//	R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Scenes\Geometric Collision 1\Collision.sdf2)", 
+	//	Eigen::Affine3f::Identity(), 
+	//	SolidCollisionSolverBase::Configuration(0.015f, 6.0)
+	//); 
 	
-	// integrator.addSolver<PositionCommiter>();
+	integrator.addSolver<PositionCommiter>();
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
@@ -221,12 +221,12 @@ void validSolverCorretness(int resampleRate = -1) {
 		massSpringSolver.get()
 		);
 
-	//auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
-	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
-	//	"TestHair-${F}-Spring.vply",
-	//	simulationTimeStep,
-	//	massSpringSolver.get()
-	//);
+	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
+		R"(C:\Users\VividWinPC1\Desktop\HairData)",
+		"TestHair-${F}-Spring.vply",
+		simulationTimeStep,
+		massSpringSolver.get()
+	);
 
 	//auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
 	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",

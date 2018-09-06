@@ -262,3 +262,6 @@ __pycache__/
 
 # Visual Studio CMake Setting
 CMakeSettings.json
+
+# CLion Build Stuff
+cmake-build-*
