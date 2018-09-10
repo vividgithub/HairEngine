@@ -265,3 +265,9 @@ CMakeSettings.json
 
 # CLion Build Stuff
 cmake-build-*
+
+# Visual Studio Code
+.vscode
+
+# Visual Studio Code Biild
+build
