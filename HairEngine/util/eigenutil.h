@@ -70,7 +70,6 @@ namespace HairEngine {
 
 		}
 
-#ifdef HAIRENGINE_ENABLE_VPBRT
 		/*
 		 * Convert a group of Vector3f into string
 		 */
@@ -106,7 +105,6 @@ namespace HairEngine {
 		inline VPly::VPlyVector3i toVPlyVector3i(const Eigen::Vector3i & v) {
 			return { v.x(), v.y(), v.z() };
 		}
-#endif
 	}
 
 }

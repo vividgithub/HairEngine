@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef HAIRENGINE_ENABLE_VPBRT
-
 #include <ostream>
 #include <sstream>
 
@@ -92,5 +90,3 @@ namespace HairEngine {
 	};
 
 }
-
-#endif

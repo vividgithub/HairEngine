@@ -1,8 +1,6 @@
 
 #pragma once
 
-#ifdef HAIRENGINE_ENABLE_VPBRT
-
 #include "../precompiled/precompiled.h"
 #include "../util/eigenutil.h"
 #include "visualizer.h"
@@ -109,6 +107,4 @@ namespace HairEngine {
 	};
 
 }
-
-#endif
 
