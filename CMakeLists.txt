@@ -22,10 +22,6 @@ set(HAIRENGINE_EXTERNAL_DIR "${PROJECT_SOURCE_DIR}/External")
 
 set(CMAKE_CXX_STANDARD 14)
 
-# Options
-option(HAIRENGINE_ENABLE_VPBRT "Enable VPbrt related class and functions" OFF)
-option(HAIRENGINE_ENABLE_OPENMP "Enable openmp for parallism work, otherwise all the code that related to openmp will be sequential" ON)
-
 # All the common compile source files
 set(
 	HAIRENGINE_COMMON_SOURCE_FILES
@@ -48,9 +44,7 @@ set(HAIRENGINE_LIBRARIES)
 
 # Compile tags
 set(HAIRENGINE_COMPILE_OPTIONS)
-if (HAIRENGINE_ENABLE_VPBRT) 
-	set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_VPBRT")
-endif()
+
 if (HAIRENGINE_ENABLE_OPENMP)
     set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "/usr/local/lib")
     if (CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")

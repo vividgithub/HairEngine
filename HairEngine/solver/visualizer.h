@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef HAIRENGINE_ENABLE_VPBRT
-
 #include <ostream>
 #include <sstream>
 
@@ -29,11 +27,12 @@ namespace HairEngine {
 		 * @param filenameTemplate The template specifies the real filename for a certain simulation frame. 
 		 * Currently, we use "${F}" to specify current frame number. So a "${F}" substring will be replaced to 
 		 * the real frame number at different simulation step to avoid name conflict
-		 * @param The timesteip for writing another visualization file. It indicates the time interval to write a 
-		 * visualization summary file to the disk so that it could avoid write multiple intermediate simulation step 
-		 * with a small integration time.
+		 * @param timestep The time interval for writing another visualization file to the disk. It indicates the time
+		 * interval to write a visualization summary file to the disk so that it could avoid write multiple
+		 * intermediate simulation step with a small integration time. A value less or equal to 0.0f indicating
+		 * to write visualization file when the "solve" is called.
 		 */
-		Visualizer(const std::string & directory, const std::string & filenameTemplate, float timestep)
+		Visualizer(const std::string & directory, const std::string & filenameTemplate, float timestep=0.0f)
 			: directory(directory), filenameTemplate(filenameTemplate), timestep(timestep) {
 
 			// Append path seprator if needed
@@ -46,7 +45,7 @@ namespace HairEngine {
 			currentTime += info.t;
 
 			// Works well even when info.t > timestep
-			if (currentTime >= 0.995f * timestep) {
+			if (timestep <= 0.0f || currentTime >= 0.995f * timestep) {
 				auto filepath = getFilepath(info);
 				++indexCounter;
 
@@ -55,6 +54,7 @@ namespace HairEngine {
 
 				fout.close();
 
+				// When timestep <= 0.0, it is safe since we don't use the currentTime
 				currentTime -= timestep;
 			}
 		}
@@ -90,5 +90,3 @@ namespace HairEngine {
 	};
 
 }
-
-#endif

@@ -45,7 +45,8 @@ SelleMassSpringSolverBase::Configuration massSpringCommonConfiguration(
 	15.0f,
 	true,
 	4.0f,
-	25.0f
+	25.0f,
+	0.0f
 );
 
 void testOpenMPEnable() {
@@ -184,9 +185,11 @@ void testDifferentSelleMassSpringSolverSpeed() {
 
 
 void validSolverCorretness() {
-	const float simulationTimeStep = 1.0f / 24.0f; // The time interval for dumping a frame
-	const float integrationTimeStep = 1.0f / 120.0f; // The time for true integration
+	const float simulationTimeStep = 1.0f / 12.0f; // The time interval for dumping a frame
+	const float integrationTimeStep = 1.0f / 240.0f; // The time for true integration
 	const int totalSimulationLoop = 250; // The simulation loop
+
+	massSpringCommonConfiguration.maxIntegrationTime = integrationTimeStep;
 
 	cout << "Reading the hair..." << endl;
 	const auto hair = make_shared<Hair>(Hair(R"(/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair)").resample(5432));
@@ -209,7 +212,7 @@ void validSolverCorretness() {
 	//	SolidCollisionSolverBase::Configuration(0.015f, 6.0)
 	//); 
 	
-	integrator.addSolver<PositionCommiter>();
+	//integrator.addSolver<PositionCommiter>();
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
@@ -217,21 +220,21 @@ void validSolverCorretness() {
 	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
 		R"(/Users/vivi/Desktop/HairData)",
 		"TestHair-${F}-Hair.vply",
-		simulationTimeStep,
+		0.0f,
 		massSpringSolver.get()
 		);
 
-	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
-		R"(/Users/vivi/Desktop/HairData)",
-		"TestHair-${F}-Spring.vply",
-		simulationTimeStep,
-		massSpringSolver.get()
-	);
+//	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
+//		R"(/Users/vivi/Desktop/HairData)",
+//		"TestHair-${F}-Spring.vply",
+//		0.0f,
+//		massSpringSolver.get()
+//	);
 
 	//auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
 	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
 	//	"TestHair-${F}-HairContacts.vply",
-	//	simulationTimeStep,
+	//	0.0f,
 	//	hairContactsSolver.get(),
 	//	collisionImpulseSolver.get()
 	//);
@@ -239,14 +242,13 @@ void validSolverCorretness() {
 	//auto knnVisualizer = integrator.addSolver<SegmentKNNSolverVisualizer>(
 	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
 	//	"TestHair-${F}-HairContacts.vply",
-	//	simulationTimeStep,
+	//	0.0f,
 	//	segmentKnnSolver.get()
 	//);
 
 	for (int i = 0; i < totalSimulationLoop; ++i) {
 		cout << "Simulation Frame " << i + 1 << "..." << endl;
-		for (float currentIntegrationTime = 0.0f; currentIntegrationTime < 0.9995f * simulationTimeStep; currentIntegrationTime += integrationTimeStep)
-			integrator.simulate(integrationTimeStep, Affine3f::Identity());
+		integrator.simulate(simulationTimeStep, Affine3f::Identity());
 	}
 
 	cout << "Simulation end..." << endl;
