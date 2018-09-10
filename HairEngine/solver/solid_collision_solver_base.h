@@ -143,7 +143,7 @@ namespace HairEngine {
 		 * 
 		 * @return A Affine3f indicating the local to world transform
 		 */
-		const Eigen::Affine3f &getLocalToWorldTransform() const {
+		Eigen::Affine3f getLocalToWorldTransform() const {
 			return localToWorldTransform;
 		}
 
@@ -152,7 +152,7 @@ namespace HairEngine {
 		 * 
 		 * @return A Affine3f indicating the world to local transform
 		 */
-		const Eigen::Affine3f &getWorldToLocalTransform() const {
+		Eigen::Affine3f getWorldToLocalTransform() const {
 			return worldToLocalTransform;
 		}
 

@@ -1,9 +1,9 @@
 ﻿# CMakeList.txt : Top-level CMake project file, do global configuration
 # and include sub-projects here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.12)
 
-project ("HairEngine")
+project ("HairEngine" CXX)
 
 # Expand the cmake module path
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMake")
@@ -52,10 +52,43 @@ if (HAIRENGINE_ENABLE_VPBRT)
 	set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_VPBRT")
 endif()
 if (HAIRENGINE_ENABLE_OPENMP)
-	find_package(OpenMP REQUIRED)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}") 
-	message(STATUS "OpenMp added with flags: " ${CMAKE_CXX_FLAGS} " with OpenMP Flags: " ${OpenMP_CXX_FLAGS})
-	set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_OPENMP")
+    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "/usr/local/lib")
+    if (CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")
+        # Handle Apple Clang openmp
+        set(APPLE_OPENMP_ROOT $ENV{OPENMP_ROOT})
+        if (NOT APPLE_OPENMP_ROOT)
+            message(WARNING "Check using Apple Clang compiler, please set the environment \"OPENMP_ROOT\" correctly")
+        endif()
+
+        if (APPLE_OPENMP_ROOT)
+            find_library(APPLE_OPENMP_LIB_PATH omp NAMES libomp HINTS ${APPLE_OPENMP_ROOT}/lib)
+        else()
+            find_library(APPLE_OPENMP_LIB_PATH omp NAMES libomp)
+        endif()
+        if (APPLE_OPENMP_LIB_PATH)
+            message(STATUS "Find OpenMP lib path: " ${APPLE_OPENMP_LIB_PATH})
+        else()
+            message(FATAL_ERROR "Could not find OpenMP library path")
+        endif()
+
+        if (APPLE_OPENMP_ROOT)
+            find_path(APPLE_OPENMP_INCLUDE_PATH omp.h HINTS ${APPLE_OPENMP_ROOT}/include)
+        endif()
+        if (APPLE_OPENMP_INCLUDE_PATH)
+            message(STATUS "Find OpenMP include path: " ${APPLE_OPENMP_INCLUDE_PATH})
+        else()
+            message(FATAL_ERROR "Could not find OpenMP include path")
+        endif()
+
+        set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Xpreprocessor -fopenmp -lomp")
+        set(HAIRENGINE_LIBRARIES ${HAIRENGINE_LIBRARIES} ${APPLE_OPENMP_LIB_PATH})
+        set(HAIRENGINE_INCLUDE_DIRS ${HAIRENGINE_INCLUDE_DIRS} ${APPLE_OPENMP_INCLUDE_PATH})
+    else()
+        find_package(OpenMP REQUIRED)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+        message(STATUS "OpenMp added with flags: " ${CMAKE_CXX_FLAGS} " with OpenMP Flags: " ${OpenMP_CXX_FLAGS})
+    endif()
+    set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_OPENMP")
 endif()
 
 # We use the main file to generate executable files for debugging in testing.

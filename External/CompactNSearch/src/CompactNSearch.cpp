@@ -300,11 +300,7 @@ NeighborhoodSearch::erase_empty_entries(std::vector<unsigned int> const& to_dele
 	});
 
 	// Perform neighborhood search.
-#ifdef _MSC_VER
-	concurrency::parallel_for_each
-#else
-	__gnu_parallel::for_each
-#endif
+	Parallel::foreach
 	(kvps.begin(), kvps.end(), [&](std::pair<HashKey const, unsigned int>* kvp_)
 	{
 		auto& kvp = *kvp_;
@@ -398,11 +394,7 @@ NeighborhoodSearch::query()
 	});
 
 	// Perform neighborhood search.
-#ifdef _MSC_VER
-	concurrency::parallel_for_each
-#else
-	__gnu_parallel::for_each
-#endif
+	Parallel::foreach
 	(kvps.begin(), kvps.end(), [&](std::pair<HashKey const, unsigned int> const* kvp_)
 	{
 		auto const& kvp = *kvp_;
@@ -458,11 +450,7 @@ NeighborhoodSearch::query()
 	std::vector<std::array<bool, 27>> visited(m_entries.size(), {false});
 	std::vector<Spinlock> entry_locks(m_entries.size());
 
-#ifdef _MSC_VER
-	concurrency::parallel_for_each
-#else
-	__gnu_parallel::for_each
-#endif
+	Parallel::foreach
 	(kvps.begin(), kvps.end(), [&](std::pair<HashKey const, unsigned int> const* kvp_)
 	{
 		auto const& kvp = *kvp_;
