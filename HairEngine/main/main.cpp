@@ -189,7 +189,7 @@ void validSolverCorretness() {
 	const int totalSimulationLoop = 250; // The simulation loop
 
 	cout << "Reading the hair..." << endl;
-	const auto hair = make_shared<Hair>(Hair(R"(C:\Users\VividWinPC1\Developer\Project\HairEngine\Houdini\Resources\Models\Feamle 04 Retop\Hair\Straight-50000-p25.hair)").resample(5432));
+	const auto hair = make_shared<Hair>(Hair(R"(/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair)").resample(5432));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, Affine3f::Identity());
@@ -215,14 +215,14 @@ void validSolverCorretness() {
 
 	// Add visualizer
 	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
-		R"(C:\Users\VividWinPC1\Desktop\HairData)",
+		R"(/Users/vivi/Desktop/HairData)",
 		"TestHair-${F}-Hair.vply",
 		simulationTimeStep,
 		massSpringSolver.get()
 		);
 
 	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
-		R"(C:\Users\VividWinPC1\Desktop\HairData)",
+		R"(/Users/vivi/Desktop/HairData)",
 		"TestHair-${F}-Spring.vply",
 		simulationTimeStep,
 		massSpringSolver.get()
@@ -258,6 +258,7 @@ void testSDFReading(const std::string & sdfPath) {
 }
 
 int main() {
+	testOpenMPEnable();
 	validSolverCorretness();
 	return 0;
 }
