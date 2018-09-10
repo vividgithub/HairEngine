@@ -56,6 +56,10 @@ namespace HairEngine {
 			float colinearMaxDegree; ///< We will insert additional virtual particles if two adjacent line segments are "nearly" colinear, we treat the two adjacent line segment colinear is the included angle is less than colinearMaxDegree
 			float mass; ///< The mass of the single hair strand
 
+			/// We allow to specify a detailed integration time to guarantee stability. So that if the timestep is too
+			/// large, then it will be splitted into several integration.
+			float maxIntegrationTime;
+
 			/**
 			 * Constructor
 			 */
@@ -67,10 +71,11 @@ namespace HairEngine {
 				float damping,
 				bool enableStrainLimiting,
 				float colinearMaxDegree,
-				float mass
+				float mass,
+				float maxIntegrationTime
 			): stretchStiffness(stretchStiffness), bendingStiffness(bendingStiffness), 
 			torsionStiffness(torsionStiffness), altitudeStiffness(altitudeStiffness), damping(damping),
-			enableStrainLimiting(enableStrainLimiting), colinearMaxDegree(colinearMaxDegree), mass(mass) {}
+			enableStrainLimiting(enableStrainLimiting), colinearMaxDegree(colinearMaxDegree), mass(mass), maxIntegrationTime(maxIntegrationTime) {}
 		};
 
 		/**
@@ -82,7 +87,7 @@ namespace HairEngine {
 			stretchStiffness(conf.stretchStiffness), bendingStiffness(conf.bendingStiffness), 
 			torsionStiffness(conf.torsionStiffness), altitudeStiffness(conf.altitudeStiffness), damping(conf.damping),
 			enableStrainLimiting(conf.enableStrainLimiting), colinearMaxRad(conf.colinearMaxDegree * 3.141592f / 180.0f), 
-			mass(conf.mass) {}
+			mass(conf.mass), maxIntegrationTime(conf.maxIntegrationTime) {}
 
 		void setup(const Hair& hair, const Eigen::Affine3f & currentTransform) override {
 			// Inverse the transform
@@ -225,24 +230,45 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
+			// Copy to position buffer
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 				pos1[i] = par->pos;
 				vel1[i] = par->vel;
 			});
 
 			const auto startIntegration = std::chrono::high_resolution_clock::now();
-			integrate(pos1, vel1, vel2, info);
+
+			// Setup the split time interval
+			std::vector<float> timeIntervals;
+			// For invalid maxIntegrationTime(<=0.0f), we use 1 integration
+			float tinc = (maxIntegrationTime <= 0.0f) ? 1.0f : maxIntegrationTime / info.t;
+
+			for (float t = 0.0f; t <= 1.0f; t += tinc) {
+				timeIntervals.emplace_back(t);
+			}
+			if (timeIntervals.back() <= 0.99f * info.t) {
+				timeIntervals.emplace_back(1.0f);
+			}
+
+			auto splittedInfos = info.lerp(timeIntervals.cbegin(), timeIntervals.cend());
+
+			for (const auto & splittedInfo : splittedInfos) {
+				integrate(pos1, vel1, vel2, splittedInfo);
+				ParallismUtility::parallelFor(0, nparticle, [this, &splittedInfo] (int i) {
+					pos1[i] += splittedInfo.t * vel2[i];
+				});
+				std::swap(vel1, vel2);
+			}
+
 			const auto endIntegration = std::chrono::high_resolution_clock::now();
 
 			std::chrono::duration<double> diff = endIntegration - startIntegration;
 			integrationTime = diff.count();
 
+			// Copy out the result
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
-				par->vel = vel2[i];
-
-				// Only commit the position of the virtual particles
-				if (isVirtualParticle(i))
-					par->pos += info.t * par->vel;
+				par->vel = vel1[i];
+				par->pos = pos1[i];
 			});
 
 			//float t_2 = info.t / 2.0f;
@@ -325,6 +351,7 @@ namespace HairEngine {
 		bool enableStrainLimiting;
 		float colinearMaxRad;
 		float mass;
+		float maxIntegrationTime;
 
 		const Hair *hairPtr;
 
