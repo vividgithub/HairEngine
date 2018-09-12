@@ -18,6 +18,7 @@
 #include "../solver/segment_knn_solver_visualizer.h"
 #include "../solver/hair_contacts_impulse_solver.h"
 #include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
+#include "../solver/bone_skinning_animation_data_visualizer.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -104,7 +105,6 @@ void testDifferentSelleMassSpringSolverSpeed() {
 	vector<string> simulatorNames = { "Our Method" }; //{ "Conjugate Gradient", "Parallel Conjugate Gradient", "Our Method" };
 
 	vector<TimingSummary> summaries;
-
 
 	// Write to summary file
 	fstream fout(R"(C:\Users\VividWinPC1\Desktop\HairTimeSummaryNew.csv)", ios::out);
@@ -224,12 +224,12 @@ void validSolverCorretness() {
 		massSpringSolver.get()
 		);
 
-//	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
-//		R"(/Users/vivi/Desktop/HairData)",
-//		"TestHair-${F}-Spring.vply",
-//		0.0f,
-//		massSpringSolver.get()
-//	);
+	//	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
+	//		R"(/Users/vivi/Desktop/HairData)",
+	//		"TestHair-${F}-Spring.vply",
+	//		0.0f,
+	//		massSpringSolver.get()
+	//	);
 
 	//auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
 	//	R"(C:\Users\VividWinPC1\Desktop\HairData)",
@@ -259,8 +259,26 @@ void testSDFReading(const std::string & sdfPath) {
 	SignedDistanceFieldSolidCollisionSolver sdf(sdfPath, Eigen::Affine3f::Identity(), SolidCollisionSolverBase::Configuration(0.005f, 3.0f));
 }
 
+void testBoneSkinning() {
+	BoneSkinningAnimationData bkad("/Users/vivi/Developer/Project/HairEngine/Houdini/Scenes/Head Rotation 1/rotation1.bkad");
+
+	cout << "Reading the hair..." << endl;
+	const auto hair = make_shared<Hair>(Hair(R"(/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair)").resample(5432));
+
+	cout << "Creating integrator..." << endl;
+	Integrator integrator(hair, Affine3f::Identity());
+
+	integrator.addSolver<BoneSkinningAnimationDataVisualizer>("/Users/vivi/Desktop/BoneSkinning", "${F}.vply", 0.0f, &bkad);
+
+	for (int i = 0; i < bkad.getFrameCount(); ++i) {
+		cout << "Simulation Frame " << i << "..." << endl;
+		integrator.simulate(bkad.getFrameTimeInterval(), Affine3f::Identity());
+	}
+}
+
 int main() {
-	testOpenMPEnable();
-	validSolverCorretness();
+//	testOpenMPEnable();
+//	validSolverCorretness();
+	testBoneSkinning();
 	return 0;
 }

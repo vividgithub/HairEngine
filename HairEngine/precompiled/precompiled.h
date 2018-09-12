@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <memory>
 #include <type_traits>
+#include <exception>
 
 /*
  * Safe Delete
@@ -55,3 +56,25 @@
 #else
 #define HairEngine_DebugAssert(expr_) assert(expr_)
 #endif
+
+/*
+ * Exception
+ */
+#define HairEngine_ThrowExceptionIf(check_, exception_) if (check_) throw exception_
+
+namespace HairEngine {
+	class HairEngineException: public std::exception {
+	HairEngine_Public:
+		const char *what() const noexcept override  {
+			return "HairEngine Exception";
+		}
+	};
+
+	class HairEngineIOException: public HairEngineException {
+	HairEngine_Public:
+
+		const char *what() const noexcept override {
+			return "HairEngine IO Exception";
+		}
+	};
+}
