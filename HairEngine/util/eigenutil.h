@@ -67,7 +67,27 @@ namespace HairEngine {
 			  << '{' << m(2, 0) << ',' << m(2, 1) << ',' << m(2, 2) << ','  << '}' << ','
 			  << '}';
 			return os;
+		}
 
+		/**
+		 * Convert an vector 3 vector to vector 4 by adding 1 to the last dimension
+		 * @param vec3 The input vector
+		 * @return A vector with size 4 which equals to (vec3, 1.0f)
+		 */
+		inline Eigen::Vector4f fromVector3fToVector4f(const Eigen::Vector3f & vec3) {
+			Eigen::Vector4f vec4;
+			vec4 << vec3.x(), vec3.y(), vec3.z(), 1.0f;
+
+			return vec4;
+		}
+
+		/**
+		 * Convert an vector 4 vector to vector 3 by trimming the last dimension
+		 * @param vec4 The input vector 4 vector
+		 * @return A vector 3 vector
+		 */
+		inline Eigen::Vector3f fromVector4fToVector3f(const Eigen::Vector4f & vec4) {
+			return Eigen::Vector3f(vec4(0), vec4(1), vec4(2));
 		}
 
 		/*

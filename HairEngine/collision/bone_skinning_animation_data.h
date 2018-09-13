@@ -262,44 +262,40 @@ namespace HairEngine {
 				boneWeights.emplace_back(readInt(), readReal());
 			}
 
-			const auto & readSingleFrameTransform= [this, &readReal] () {
-
-				for (int i = 0; i < nbone; ++i) {
-					transforms.emplace_back();
-					auto & mat = transforms.back().matrix();
-					for (int r = 0; r < 4; ++r)
-						for (int c = 0; c < 4; ++c)
-							mat(r, c) = readReal();
-
-					HairEngine_DebugIf {
-						std::cout << "Bone " << i << ":" << std::endl;
-						std::cout << mat << std::endl;
-					};
-				}
-			};
-
-			// FIXME: Inverse after interpolation
-			// We store rest transform into the transforms array so that we could reuse the "update" function
-			transforms.reserve(nbone);
-			readSingleFrameTransform();
-			for (auto & transform : transforms) {
-				transform = transform.inverse(Eigen::Affine);
+			std::vector<Eigen::Affine3f> restTransforms(static_cast<size_t>(nbone));
+			for (int i = 0; i < nbone; ++i) {
+				auto & mat = restTransforms[i].matrix();
+				for (int r = 0; r < 4; ++r)
+					for (int c = 0; c < 4; ++c)
+						mat(r, c) = readReal();
 			}
-			update(-1.0f); // Use negative value to force update to the first frame
-			std::copy(poses.begin(), poses.end(), restPoses.begin());
+
+			// Lerp the position
+			for (int i = 0; i < npoint; ++i) {
+
+				int offset = i * nbonePerPoint;
+
+				Eigen::Matrix4f mat = Eigen::Matrix4f::Zero();
+
+				for (int bi = 0; bi < nbonePerPoint; ++bi) {
+					const auto & bw = boneWeights[offset + bi];
+					if (bw.boneIndex < 0)
+						break;
+					mat += restTransforms[bw.boneIndex].matrix() * bw.weight;
+				}
+
+				restPoses[i] = EigenUtility::fromVector4fToVector3f(mat.inverse() *
+						EigenUtility::fromVector3fToVector4f(restPoses[i]));
+			}
 
 			// Get the transforms
-			transforms.clear();
-			transforms.reserve(nbone * nframe);
-			for (int i = 0; i < nframe; ++i) {
-				std::cout << "==============" << i << "==============" << std::endl;
-				readSingleFrameTransform();
-				std::cout << "============================" << std::endl;
+			transforms.resize(static_cast<size_t>(nframe * nbone));
+			for (int i = 0; i < nframe * nbone; ++i) {
+				auto & mat = transforms[i].matrix();
+				for (int r = 0; r < 4; ++r)
+					for (int c = 0; c < 4; ++c)
+						mat(r, c) = readReal();
 			}
-
-			HairEngine_DebugIf {
-				printSummary(std::cout);
-			};
 		}
 	};
 }
