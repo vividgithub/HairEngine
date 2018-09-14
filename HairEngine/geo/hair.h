@@ -51,6 +51,7 @@ namespace HairEngine {
 		friend class HairContactsImpulseSolverOld;
 		friend class CollisionImpulseSolver;
 		friend class HairContactsImpulseSolver;
+		friend class SDFCollisionSolver;
 		
 	HairEngine_Public:
 		struct Strand;
@@ -290,6 +291,17 @@ namespace HairEngine {
 		}
 
 		/**
+		 * A wrapper for init function
+		 */
+		template <class RestPositionIterator, class StrandSizeIterator>
+		Hair(const RestPositionIterator & posBegin,
+		     const StrandSizeIterator & strandSizeBegin,
+		     const StrandSizeIterator & strandSizeEnd,
+		     const Eigen::Affine3f & affine = Eigen::Affine3f::Identity()) {
+			init<RestPositionIterator, StrandSizeIterator>(posBegin, strandSizeBegin, strandSizeEnd);
+		}
+
+		/**
 		 * Get the end pointer of the particles
 		 */
 		Particle *particleEnd() const { return particles + nparticle; }
@@ -481,17 +493,6 @@ namespace HairEngine {
 				++nstrand;
 			}
 		};
-
-		/**
-		 * A wrapper for init function
-		 */
-		template <class RestPositionIterator, class StrandSizeIterator>
-		Hair(const RestPositionIterator & posBegin,
-			const StrandSizeIterator & strandSizeBegin,
-			const StrandSizeIterator & strandSizeEnd,
-			const Eigen::Affine3f & affine = Eigen::Affine3f::Identity()) {
-			init<RestPositionIterator, StrandSizeIterator>(posBegin, strandSizeBegin, strandSizeEnd);
-		}
 
 		/**
 		 * Helper function for the constructor.

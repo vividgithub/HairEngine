@@ -25,6 +25,7 @@ namespace HairEngine {
 		using Affine3fUnaligned = Eigen::Transform<float, 3, Eigen::Affine, Eigen::DontAlign>;
 
 		friend class BoneSkinningAnimationDataVisualizer;
+		friend class BoneSkinningAnimationDataUpdater;
 
 	HairEngine_Public:
 

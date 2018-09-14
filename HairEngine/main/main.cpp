@@ -19,6 +19,8 @@
 #include "../solver/hair_contacts_impulse_solver.h"
 #include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
 #include "../solver/bone_skinning_animation_data_visualizer.h"
+#include "../solver/bone_skinning_animation_data_updater.h"
+#include "../solver/sdf_collision_solver.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -262,13 +264,24 @@ void testSDFReading(const std::string & sdfPath) {
 void testBoneSkinning() {
 	BoneSkinningAnimationData bkad("/Users/vivi/Developer/Project/HairEngine/Houdini/Scenes/Head Rotation 1/rotation1.bkad");
 
-	cout << "Reading the hair..." << endl;
-	const auto hair = make_shared<Hair>(Hair(R"(/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair)").resample(5432));
+	// Generate an empty hair
+	std::vector<int> strandSizes = {};
+	std::vector<Eigen::Vector3f> particlePositions = {};
+	const auto hair = make_shared<Hair>(particlePositions.begin(), strandSizes.begin(), strandSizes.end());
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, Affine3f::Identity());
 
-	integrator.addSolver<BoneSkinningAnimationDataVisualizer>("/Users/vivi/Desktop/BoneSkinning", "${F}.vply", 0.0f, &bkad);
+	auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
+
+	auto sdfCollisionConf = SDFCollisionConfiguration { {64, 64, 64}, 0.1f, 2};
+	auto sdfCollisionSolver = integrator.addSolver<SDFCollisionSolver>(sdfCollisionConf, boneSkinningUpdater.get());
+	auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
+			"/Users/vivi/Desktop/BoneSkinning",
+			"${F}.vply",
+			0.0f,
+			sdfCollisionSolver.get()
+	);
 
 	for (int i = 0; i < bkad.getFrameCount(); ++i) {
 		cout << "Simulation Frame " << i << "..." << endl;

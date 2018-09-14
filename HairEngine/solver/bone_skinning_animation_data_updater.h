@@ -6,7 +6,7 @@
 
 #include "integration_info.h"
 #include "../collision/bone_skinning_animation_data.h"
-#include "solver.h"
+#include "sdf_collision_solver.h"
 
 namespace HairEngine {
 	/**
@@ -15,7 +15,7 @@ namespace HairEngine {
 	 * initial state, so the first geometry will be updated to the info.t for the first "solve" call. It also act as
 	 * a sdf mesh input interface to let the sdf build the signed distance field geometry.
 	 */
-	class BoneSkinningAnimationDataUpdater: public Solver {
+	class BoneSkinningAnimationDataUpdater: public Solver, public SDFCollisionMeshInterface {
 
 	HairEngine_Public:
 		/**
@@ -31,6 +31,22 @@ namespace HairEngine {
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 			time += info.t;
 			updateBoneSkinningForCurrentTime();
+		}
+
+		int getPointCount() const override {
+			return bkad->npoint;
+		}
+
+		int getPrimitiveCount() const override {
+			return bkad->nprim;
+		}
+
+		Eigen::Vector3f getPointPosition(int pointIdx) const override {
+			return bkad->poses[pointIdx];
+		}
+
+		std::array<int, 3> getPrimitivePointIndices(int primIdx) const override {
+			return bkad->primIndices[primIdx];
 		}
 
 	HairEngine_Protected:
