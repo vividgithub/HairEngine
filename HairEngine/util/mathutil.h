@@ -669,10 +669,12 @@ namespace HairEngine {
 		 * @param x0 The first vertex position of the triangle
 		 * @param x1 The second vertex position of the triangle
 		 * @param x2 The third vertex position of the triangle
+		 * @param outUV The uv coordinate of the projection point on the triangle plane, in which means the projection
+		 * point p' can be expressed as p' = u * x0 + v * x1 + (1 - u - v) * x2
 		 * @return The signed distance from the point to triangle
 		 */
 		inline float pointToTriangleSignedDistance(const Eigen::Vector3f & p,
-				const Eigen::Vector3f & x0, const Eigen::Vector3f & x1, const Eigen::Vector3f & x2) {
+				const Eigen::Vector3f & x0, const Eigen::Vector3f & x1, const Eigen::Vector3f & x2, Eigen::Vector2f *outUV = nullptr) {
 			float d = 0;
 			Eigen::Vector3f x02 = x0 - x2;
 			float l0 = x02.norm() + 1e-30f;
@@ -687,6 +689,9 @@ namespace HairEngine {
 			float b = x12.dot(px2) / l2;
 			float a = (x02.dot(px2) - l1*b) / l0;
 			float c = 1 - a - b;
+
+			if (outUV)
+				(*outUV) << a, b;
 
 			// normal vector of triangle. Don't need to normalize this yet.
 			Eigen::Vector3f nTri = (x2 - x0).cross(x1 - x0);

@@ -49,6 +49,22 @@ namespace HairEngine {
 		std::array<int, 3> resolution; ///< The resolution for each axes
 		float extend; ///< The bounding box extend to build the SDF grid
 		int narrowBandMargin; ///< The number of point margin for the narrow band width for the 0 isocontour
+
+		// Collision
+		/// Instead of pushing it to the 0 iso contour, we support to push it a slightly far away. The
+		/// absolute contour to push to is defined by "relativeContour * the_diagnoal_length_of_the_rest_position".
+		float relativeContour;
+
+		/// The friction coefficient of the SDF object
+		float fraction;
+
+		/// To ensure no-relative position flip, instead of pushing all the particle into the same relative contour,
+		/// we support to push the particle further away if it is more "inside" the SDFCollision object. The push
+		/// distance can be expressed as "(absolute_contour - signed_distance_of_the_particle) * (1 + degenerationFactor)"
+		float degenerationFactor;
+
+		/// Whether to change hair root
+		bool changeHairRoot;
 	};
 
 	/**
@@ -64,7 +80,7 @@ namespace HairEngine {
 
 		struct SDFGridStruct {
 			float dist; ///< The sdf distance
-			int primIdx; ///< The primitive index that give the value
+			Eigen::Vector3f vel; ///< The projection veloicties
 		};
 
 		struct SDFGridCell {
@@ -81,82 +97,45 @@ namespace HairEngine {
 		 * @param conf The signed distance field configuration
 		 * @param mesh The input mesh interface
 		 */
-		SDFCollisionSolver(const Configuration & conf, MeshInterface *mesh): mesh(mesh), conf(conf) {}
+		SDFCollisionSolver(const Configuration & conf, MeshInterface *mesh):
+			mesh(mesh),
+			conf(conf),
+			nx(conf.resolution[0]),
+			ny(conf.resolution[1]),
+			nz(conf.resolution[2]),
+			nyz(ny * nz),
+			nxyz(nx * nyz),
+			n(nx, ny, nz),
+			_1PlusDegenerationFactor(1.0f + conf.degenerationFactor) {
+
+			// Pre-allocating the space for grid
+			HairEngine_AllocatorAllocate(grid, static_cast<size_t>(nxyz));
+
+		}
 
 		void setup(const Hair &hair, const Eigen::Affine3f &currentTransform) override {
 			// Setup the space for the prePoses and poses
 			prePoses.resize(static_cast<size_t>(npoint()));
+			vels.resize(static_cast<size_t>(npoint()));
 			for (int i = 0; i < npoint(); ++i)
 				prePoses[i] = pos(i);
 
-			// Allocating space for grid
-			nz = conf.resolution[2];
-			nyz = conf.resolution[1] * nz;
-			nxyz = conf.resolution[0] * nyz;
-
-			HairEngine_AllocatorAllocate(grid, static_cast<size_t>(nxyz));
+			// Get the bounding box
+			Eigen::AlignedBox3f restBbox = MathUtility::boundingBox(prePoses.begin(), prePoses.end());
+			absContour = restBbox.diagonal().norm() * conf.relativeContour;
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 
 			std::cout << "Building sdf..." << std::endl;
 
-			// Get the bounding box
-			bbox = Eigen::AlignedBox3f(pos(0));
-			for (int i = 1; i < npoint(); ++i) {
-				bbox.extend(pos(i));
-			}
-
-			// Scale the bounding box
-			bbox = MathUtility::scaleBoundingBox(bbox, 1.0f + conf.extend);
-
-			// Update the d value
-			d = bbox.diagonal().cwiseQuotient(
-					Eigen::Vector3f(conf.resolution[0] - 1, conf.resolution[1] - 1, conf.resolution[2] - 1));
-			dInv = d.cwiseInverse();
-
-			// Clear the grid
-			std::fill(grid, grid + nxyz, SDFGridStruct { DISTANCE_INVALID, -1 });
-
-			const Eigen::Vector3i margin3i = Eigen::Vector3i::Ones() * conf.narrowBandMargin;
-
-			// Recompute the signed distance field
-			for (int primIdx = 0; primIdx < nprim(); ++primIdx) {
-				auto indices = primIndices(primIdx);
-				std::array<Eigen::Vector3f, 3> p { pos(indices[0]), pos(indices[1]), pos(indices[2]) };
-
-				Eigen::AlignedBox3f primBound(p[0]);
-				primBound.extend(p[1]);
-				primBound.extend(p[2]);
-
-				// FIXME: More efficient
-				Eigen::Vector3i minIndex = (primBound.min() - bbox.min()).cwiseProduct(dInv).cast<int>() - margin3i;
-				Eigen::Vector3i maxIndex = ((primBound.max() - bbox.min()).cwiseProduct(dInv) + Eigen::Vector3f::Ones()).cast<int>() + margin3i;
-
-				minIndex = minIndex.cwiseMax(Eigen::Vector3i::Zero());
-				maxIndex = maxIndex.cwiseMin(Eigen::Vector3i(conf.resolution[0], conf.resolution[1], conf.resolution[2]));
-
-				// Iterate and compute the signed distance for those grid node
-				for (int ix = minIndex.x(); ix <= maxIndex.x(); ++ix)
-					for (int iy = minIndex.y(); iy <= maxIndex.y(); ++iy)
-						for (int iz = minIndex.z(); iz <= maxIndex.z(); ++iz) {
-							auto & node = grid[ix * nyz + iy * nz + iz];
-							Eigen::Vector3f nodePos = bbox.min() + Eigen::Vector3f(ix, iy, iz).cwiseProduct(d);
-
-							float primDist = MathUtility::pointToTriangleSignedDistance(nodePos, p[0], p[1], p[2]);
-							if (std::abs(node.dist) > std::abs(primDist)) {
-								node.dist = primDist;
-								node.primIdx = primIdx;
-							}
-						}
-			}
-
-			//TODO: Collision fix
-
-			// Store the position into prePoses
-			for (int i = 0; i < npoint(); ++i)
-				prePoses[i] = pos(i);
+			computePointVelocities(info);
+			buildSDFField();
+			//resolveCollision(hair, info);
+			storePreviousPositions();
 		}
+
+	HairEngine_Protected:
 
 		void tearDown() override {
 			HairEngine_AllocatorDeallocate(grid, static_cast<size_t>(nxyz));
@@ -171,7 +150,46 @@ namespace HairEngine {
 			return idx(0) * nyz + idx(1) * nz + idx(2);
 		}
 
-	HairEngine_Protected:
+		/**
+		 * Get the node index for each axis from the position, suppose the position is surrounded by the node with index
+		 * (x, y, z) and (x + 1, y + 1, z + 1), the funciton will return (x, y, z) instead of (x + 1, y + 1, z + 1_
+		 * @param pos The position
+		 * @return A Eigen::Vector3i indicating the index for each axis
+		 */
+		Eigen::Vector3i getNodeIndex(const Eigen::Vector3f & pos) {
+			return (pos - bbox.min()).cwiseProduct(dInv).cast<int>();
+		}
+
+//		/**
+//		 * Get the surrounding voxel (cell) from a given position
+//		 * @param pos The position
+//		 * @return The cell which the position is inside, ordered by the incresment of z, then y, then x
+//		 */
+//		SDFGridCell getCell(const Eigen::Vector3f & pos) {
+//
+//			SDFGridStruct *origin;
+//			origin = grid + offset(getNodeIndex(pos));
+//
+//			return {
+//				origin, origin + 1, origin + nz, origin + nz + 1,
+//				origin + nyz, origin + nyz + 1, origin + nyz + nz, origin + nyz + nz + 1
+//			};
+//		}
+
+		/**
+		 * Get the SDF object velocity from the primitive index and the uv coordinate of that primitive.
+		 * Make sure to call the method after the "vels" have been computed correctly.
+		 * @param primIdx The primitive index
+		 * @param uv The LOCAL uv coordinate of the primitive
+		 * @return The interpolated velocity
+		 */
+		Eigen::Vector3f getSDFVelocity(int primIdx, const Eigen::Vector2f & uv) {
+			auto indices = mesh->getPrimitivePointIndices(primIdx);
+			return (vels[indices[0]] - vels[indices[2]]) * uv(0)
+					+ (vels[indices[1]] - vels[indices[2]]) * uv(1)
+					+ vels[indices[2]];
+		}
+
 
 		MeshInterface *mesh; ///< The mesh interface pointer
 		Configuration conf; ///< The configuration
@@ -179,8 +197,12 @@ namespace HairEngine {
 		/// the previous point positions after the "solve" called
 		/// used to compute the velocity
 		std::vector<Eigen::Vector3f> prePoses;
+		std::vector<Eigen::Vector3f> vels; ///< The velocity buffers
 
 		Eigen::AlignedBox3f bbox; ///< The current bounding box
+
+		float absContour; ///< The absolute target isocontour
+		float _1PlusDegenerationFactor; ///< 1.0f + conf.degnerationFactor;
 
 		int npoint() const { return mesh->getPointCount(); }
 		int nprim() const { return mesh->getPrimitiveCount(); }
@@ -188,12 +210,162 @@ namespace HairEngine {
 		Eigen::Vector3f pos(int pointIdx) const { return mesh->getPointPosition(pointIdx); }
 
 		SDFGridStruct *grid; ///< The discrete grid
-		int nxyz; ///< The total size of the grid
+
+		int nx, ny, nz; ///< The resolution for each dimension
 		int nyz; ///< The offset for the first dimension
-		int nz; ///< The offset for the second dimension
+		int nxyz; ///< The total size of the grid
+		Eigen::Vector3i n; ///< Equals to resolution, in Vector3i
 
 		Eigen::Vector3f d; ///< The distance (step) for grid in each dimensions
 		Eigen::Vector3f dInv; ///< The element wise inverse of d
+
+		void buildSDFField() {
+			// Get the bounding box
+			bbox = Eigen::AlignedBox3f(pos(0));
+			for (int i = 1; i < npoint(); ++i) {
+				bbox.extend(pos(i));
+			}
+
+			// Scale the bounding box
+			bbox = MathUtility::scaleBoundingBox(bbox, 1.0f + conf.extend);
+
+			// Update the d value
+			d = bbox.diagonal().cwiseQuotient((n - Eigen::Vector3i::Ones()).cast<float>());
+			dInv = d.cwiseInverse();
+
+			// Clear the grid
+			std::fill(grid, grid + nxyz, SDFGridStruct { DISTANCE_INVALID, Eigen::Vector3f::Zero() });
+
+			const Eigen::Vector3i margin3i = Eigen::Vector3i::Ones() * conf.narrowBandMargin;
+
+			// Recompute the signed distance field
+			for (int primIdx = 0; primIdx < nprim(); ++primIdx) {
+				auto indices = primIndices(primIdx);
+				std::array<Eigen::Vector3f, 3> p { pos(indices[0]), pos(indices[1]), pos(indices[2]) };
+
+				Eigen::AlignedBox3f primBound(p[0]);
+				primBound.extend(p[1]);
+				primBound.extend(p[2]);
+
+				Eigen::Vector3i minIndex = (getNodeIndex(primBound.min()) - margin3i).cwiseMax(Eigen::Vector3i::Zero());
+				// Ceiling the maxIndex, add Vector3i::Ones() to it so that there's at least a voxel between the minIndex and maxIndex
+				Eigen::Vector3i maxIndex = (getNodeIndex(primBound.max()) + margin3i + Eigen::Vector3i::Ones()).cwiseMin(n);
+
+				// Iterate and compute the signed distance for those grid node
+				for (int ix = minIndex.x(); ix <= maxIndex.x(); ++ix)
+					for (int iy = minIndex.y(); iy <= maxIndex.y(); ++iy)
+						for (int iz = minIndex.z(); iz <= maxIndex.z(); ++iz) {
+							auto & node = grid[ix * nyz + iy * nz + iz];
+							Eigen::Vector3f nodePos = bbox.min() + Eigen::Vector3f(ix, iy, iz).cwiseProduct(d);
+
+							Eigen::Vector2f uv;
+							float primDist = MathUtility::pointToTriangleSignedDistance(nodePos, p[0], p[1], p[2], &uv);
+							if (std::abs(node.dist) > std::abs(primDist)) {
+								node.dist = primDist;
+								node.vel = getSDFVelocity(primIdx, uv);
+							}
+						}
+			}
+		}
+
+		void computePointVelocities(const IntegrationInfo & info) {
+			// Compute the particle velocities
+			float tInv = 1.0f / info.t;
+
+			ParallismUtility::parallelFor(0, npoint(), [this, tInv] (int i) {
+				vels[i] = (pos(i) - prePoses[i]) * tInv;
+			});
+		}
+
+		void resolveCollision(Hair &hair, const IntegrationInfo &info) {
+			// Resolve collision
+			mapParticle(true, [this] (Hair::Particle *par) {
+				// Not in the extended bounding box
+				if (!bbox.contains(par->pos))
+					return;
+				else if (par->localIndex == 0 && conf.changeHairRoot)
+					return;
+
+				// Query the surrounding cell
+				Eigen::Vector3f index3f = (par->pos - bbox.min()).cwiseProduct(dInv);
+				Eigen::Vector3i index3 = index3f.cast<int>().cwiseMin(n - Eigen::Vector3i::Ones());
+
+				// Query the surrounded nodes
+				SDFGridStruct *origin = grid + offset(index3);
+				std::array<SDFGridStruct *, 8> nodes = {
+						origin, origin + 1, origin + nz, origin + nz + 1,
+						origin + nyz, origin + nyz + 1, origin + nyz + nz, origin + nyz + nz + 1
+				};
+
+				// Invalid cell, ignore it
+				if (std::any_of(nodes.begin(), nodes.end(),
+				                [this] (SDFGridStruct *node) -> bool { return node->dist == SDFCollisionSolver::DISTANCE_INVALID; }))
+					return;
+
+				// All are above the isocontour, ignore it
+				else if (std::all_of(nodes.begin(), nodes.end(),
+						[this] (SDFGridStruct *node) -> bool { return node->dist > absContour; }))
+					return;
+
+				// Get the interpolation weights by tri-linear interpolation
+				Eigen::Vector3f t = index3f - index3.cast<float>();
+				float chunkx[2] {1 - t.x(), t.x()};
+				float chunky[2] {1 - t.y(), t.y()};
+				float chunkz[2] {1 - t.z(), t.z()};
+
+				//Compute the distance and the gradient
+				float signedDist = 0.0f;
+
+				for (int i = 0; i < 8; ++i) {
+					int boolx = (i >> 2), booly = (i >> 1) & 1, boolz = i & 1;
+					signedDist += nodes[i]->dist * chunkx[boolx] * chunky[booly] * chunkz[boolz];
+				}
+
+				if (signedDist > absContour)
+					return;
+
+				// Compute the gradient and velocity of the object
+				Eigen::Vector3f gradient = Eigen::Vector3f::Zero();
+				Eigen::Vector3f v = Eigen::Vector3f::Zero(); // Object velocity
+
+				for (int i = 0; i < 8; ++i) {
+					int boolx = (i >> 2), booly = (i >> 1) & 1, boolz = i & 1;
+					const auto & node = nodes[i];
+
+					v += node->vel * (chunkx[boolx] * chunky[booly] * chunkz[boolz]);
+
+					gradient(0) += (boolx ? 1.0f : -1.0f) * node->dist * chunky[booly] * chunkz[boolz];
+					gradient(1) += (booly ? 1.0f : -1.0f) * node->dist * chunkx[boolx] * chunkz[boolz];
+					gradient(2) += (boolz ? 1.0f : -1.0f) * node->dist * chunkx[boolx] * chunky[booly];
+				}
+
+				gradient.normalize();
+
+				// Compute the fixed position and velocity
+				auto & vp = par->vel; // Particle velocity
+				Eigen::Vector3f vpt, vpn, vt, vn; // Projection and tangent object and particle velocity
+
+				MathUtility::projection(vp, gradient, vpn, vpt);
+				MathUtility::projection(v, gradient, vn, vt);
+
+				//Update the tangent velocity
+				Eigen::Vector3f vrelt = vpt - vt;
+				vrelt = std::max<float>(0.0f, 1.0f - conf.fraction * (vpn - vn).norm() / vrelt.norm()) * vrelt;
+				vpt = vt + vrelt;
+
+				//Update the normal velocity
+				vpn = vn;
+
+				par->vel = vpt + vpn;
+				par->pos += ((absContour - signedDist) * _1PlusDegenerationFactor) * gradient;
+			});
+		}
+
+		void storePreviousPositions() {
+			ParallismUtility::parallelFor(0, npoint(), [this](int i){
+				prePoses[i] = pos(i);
+			});
+		}
 	};
 
 	/**
@@ -270,7 +442,11 @@ namespace HairEngine {
 						// 0 -> 1 -> 3 -> 2 -> 0 -> 4 -> 6 -> 2 -> 6 -> 7 -> 5 -> 4 -> 5 -> 1 -> 3 -> 7
 						std::array<int, 16> drawIndices = { 0, 1, 3, 2, 0, 4, 6, 2, 6, 7, 5, 4, 5, 1, 3, 7 };
 						for (auto drawIndex : drawIndices) {
-							l.addPoint(EigenUtility::toVPlyVector3f(poses[drawIndex]), VPly::VPlyFloatAttr("dist", nodes[drawIndex]->dist), VPly::VPlyIntAttr("pid", nodes[drawIndex]->primIdx));
+							l.addPoint(
+									EigenUtility::toVPlyVector3f(poses[drawIndex]),
+									VPly::VPlyFloatAttr("d", nodes[drawIndex]->dist),
+									VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(nodes[drawIndex]->vel))
+							);
 						}
 
 						l.stream(os);
