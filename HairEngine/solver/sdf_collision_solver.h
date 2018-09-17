@@ -234,7 +234,7 @@ namespace HairEngine {
 			dInv = d.cwiseInverse();
 
 			// Clear the grid
-			std::fill(grid, grid + nxyz, SDFGridStruct { DISTANCE_INVALID, Eigen::Vector3f::Zero() });
+			std::fill(grid, grid + nxyz, SDFGridStruct { DISTANCE_INVALID, Eigen::Vector3f::Zero()});
 
 			const Eigen::Vector3i margin3i = Eigen::Vector3i::Ones() * conf.narrowBandMargin;
 
@@ -387,6 +387,13 @@ namespace HairEngine {
 			std::cout << "[SDFCollisionVisualizer] Write vply..." << std::endl;
 
 			const auto & resolution =sdfSolver->conf.resolution;
+
+//			for (int i = 0; i < sdfSolver->npoint(); ++i) {
+//				VPly::writePoint(
+//						os, EigenUtility::toVPlyVector3f(sdfSolver->pos(i)),
+//						VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(sdfSolver->vels[i]))
+//				);
+//			}
 
 			// Write the cell with 0 contour
 			for (int ix = 0; ix < resolution[0] - 1; ++ix)

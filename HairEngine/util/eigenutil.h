@@ -113,6 +113,10 @@ namespace HairEngine {
 			return { v(0), v(1), v(2) };
 		}
 
+		inline VPly::VPlyVector2f toVPlyVector2f(const Eigen::Vector2f & v) {
+			return { v(0), v(1) };
+		}
+
 		inline VPly::VPlyMatrix4f toVPlyMatrix4f(const Eigen::Matrix4f & m) {
 			return {
 					m(0, 0), m(0, 1), m(0, 2), m(0, 3),
