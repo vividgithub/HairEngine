@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
+#include <istream>
+
+
 #include "../precompiled/precompiled.h"
 
 namespace HairEngine {
@@ -488,7 +491,7 @@ namespace HairEngine {
 			const Eigen::Vector3f &pos0, const Eigen::Quaternionf &rot0, const Eigen::Vector3f &scale0,
 			const Eigen::Vector3f &pos1, const Eigen::Quaternionf &rot1, const Eigen::Vector3f &scale1)
 		{
-			float one_minus_alpha = 1 - alpha;
+			float one_minus_alpha = 1.0f - alpha;
 
 			Eigen::Affine3f result;
 			result.fromPositionOrientationScale(
@@ -709,6 +712,7 @@ namespace HairEngine {
 				d = std::min(d, pointToLineSegmentSquaredDistance(p, x0, x2));
 			}
 
+			d = sqrt(d);
 			d = ((p - x0).dot(nTri) < 0.f) ? -d : d;
 
 			return d;

@@ -110,7 +110,7 @@ namespace HairEngine {
 
 			// Pre-allocating the space for grid
 			HairEngine_AllocatorAllocate(grid, static_cast<size_t>(nxyz));
-
+			gridLocks = new ParallismUtility::Spinlock[static_cast<size_t>(nxyz)];
 		}
 
 		void setup(const Hair &hair, const Eigen::Affine3f &currentTransform) override {
@@ -131,7 +131,7 @@ namespace HairEngine {
 
 			computePointVelocities(info);
 			buildSDFField();
-			//resolveCollision(hair, info);
+			resolveCollision(hair, info);
 			storePreviousPositions();
 		}
 
@@ -139,6 +139,7 @@ namespace HairEngine {
 
 		void tearDown() override {
 			HairEngine_AllocatorDeallocate(grid, static_cast<size_t>(nxyz));
+			delete [] gridLocks;
 		}
 
 		/**
@@ -210,6 +211,7 @@ namespace HairEngine {
 		Eigen::Vector3f pos(int pointIdx) const { return mesh->getPointPosition(pointIdx); }
 
 		SDFGridStruct *grid; ///< The discrete grid
+		ParallismUtility::Spinlock *gridLocks; ///< The spin lock for each grid node
 
 		int nx, ny, nz; ///< The resolution for each dimension
 		int nyz; ///< The offset for the first dimension
@@ -218,6 +220,14 @@ namespace HairEngine {
 
 		Eigen::Vector3f d; ///< The distance (step) for grid in each dimensions
 		Eigen::Vector3f dInv; ///< The element wise inverse of d
+
+//		struct CollisionInfo {
+//			Eigen::Vector3f prevPos, pos;
+//			Eigen::Vector3f gradient;
+//			float signedDistance;
+//		};
+
+//		std::vector<CollisionInfo> infos;
 
 		void buildSDFField() {
 			// Get the bounding box
@@ -239,7 +249,7 @@ namespace HairEngine {
 			const Eigen::Vector3i margin3i = Eigen::Vector3i::Ones() * conf.narrowBandMargin;
 
 			// Recompute the signed distance field
-			for (int primIdx = 0; primIdx < nprim(); ++primIdx) {
+			ParallismUtility::parallelFor(0, nprim(), [this, &margin3i] (int primIdx){
 				auto indices = primIndices(primIdx);
 				std::array<Eigen::Vector3f, 3> p { pos(indices[0]), pos(indices[1]), pos(indices[2]) };
 
@@ -255,17 +265,25 @@ namespace HairEngine {
 				for (int ix = minIndex.x(); ix <= maxIndex.x(); ++ix)
 					for (int iy = minIndex.y(); iy <= maxIndex.y(); ++iy)
 						for (int iz = minIndex.z(); iz <= maxIndex.z(); ++iz) {
-							auto & node = grid[ix * nyz + iy * nz + iz];
+
+							int off = offset({ix, iy, iz});
+
+							auto & node = grid[off];
+							auto & spinLock = gridLocks[off];
+
 							Eigen::Vector3f nodePos = bbox.min() + Eigen::Vector3f(ix, iy, iz).cwiseProduct(d);
 
 							Eigen::Vector2f uv;
 							float primDist = MathUtility::pointToTriangleSignedDistance(nodePos, p[0], p[1], p[2], &uv);
+
+							spinLock.lock();
 							if (std::abs(node.dist) > std::abs(primDist)) {
 								node.dist = primDist;
 								node.vel = getSDFVelocity(primIdx, uv);
 							}
+							spinLock.unlock();
 						}
-			}
+			});
 		}
 
 		void computePointVelocities(const IntegrationInfo & info) {
@@ -278,12 +296,14 @@ namespace HairEngine {
 		}
 
 		void resolveCollision(Hair &hair, const IntegrationInfo &info) {
+			//infos.clear();
+
 			// Resolve collision
 			mapParticle(true, [this] (Hair::Particle *par) {
 				// Not in the extended bounding box
 				if (!bbox.contains(par->pos))
 					return;
-				else if (par->localIndex == 0 && conf.changeHairRoot)
+				else if (par->localIndex == 0 && !conf.changeHairRoot)
 					return;
 
 				// Query the surrounding cell
@@ -339,6 +359,8 @@ namespace HairEngine {
 					gradient(2) += (boolz ? 1.0f : -1.0f) * node->dist * chunkx[boolx] * chunky[booly];
 				}
 
+				gradient = gradient.cwiseProduct(dInv);
+
 				gradient.normalize();
 
 				// Compute the fixed position and velocity
@@ -357,8 +379,20 @@ namespace HairEngine {
 				vpn = vn;
 
 				par->vel = vpt + vpn;
-				par->pos += ((absContour - signedDist) * _1PlusDegenerationFactor) * gradient;
-			});
+//				infos.emplace_back();
+//				auto & info = infos.back();
+//				info.prevPos = par->pos;
+//				info.gradient = gradient;
+//				info.signedDistance = signedDist;
+//
+				par->pos += ((absContour - signedDist)) * gradient;
+//				par->vel = Eigen::Vector3f::Zero();
+//
+//				info.pos = par->pos;
+
+ 			});
+
+//			std::cout << infos.size() << std::endl;
 		}
 
 		void storePreviousPositions() {
@@ -388,76 +422,35 @@ namespace HairEngine {
 
 			const auto & resolution =sdfSolver->conf.resolution;
 
-//			for (int i = 0; i < sdfSolver->npoint(); ++i) {
-//				VPly::writePoint(
-//						os, EigenUtility::toVPlyVector3f(sdfSolver->pos(i)),
-//						VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(sdfSolver->vels[i]))
-//				);
-//			}
+			// Write the mesh surface
+			for (int i = 0; i < sdfSolver->npoint(); ++i) {
+				VPly::writePoint(
+						os, EigenUtility::toVPlyVector3f(sdfSolver->pos(i)),
+						VPly::VPlyIntAttr("type", 1),
+						VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(sdfSolver->vels[i]))
+				);
+			}
 
-			// Write the cell with 0 contour
+			// Write the cell with 0 and abs contour
 			for (int ix = 0; ix < resolution[0] - 1; ++ix)
 				for (int iy = 0; iy < resolution[1] - 1; ++iy)
 					for (int iz = 0; iz < resolution[2] - 1; ++iz) {
 
-						const auto index3 = Eigen::Vector3i(ix, iy, iz);
+						Eigen::Vector3i index3 = Eigen::Vector3i(ix, iy, iz);
+						auto & node = sdfSolver->grid[sdfSolver->offset(Eigen::Vector3i(ix, iy, iz))];
 
-						SDFCollisionSolver::SDFGridStruct *origin = sdfSolver->grid + sdfSolver->offset(index3);
-						std::array<SDFCollisionSolver::SDFGridStruct *, 8> nodes = {
-								origin,
-								origin + 1,
-								origin + sdfSolver->nz,
-								origin + sdfSolver->nz + 1,
-								origin + sdfSolver->nyz,
-								origin + sdfSolver->nyz + 1,
-								origin + sdfSolver->nyz + sdfSolver->nz,
-								origin + sdfSolver->nyz + sdfSolver->nz + 1
-						};
-
-						// Continue if all the nodes are invalid
-						if (std::any_of(nodes.begin(), nodes.end(), [] (SDFCollisionSolver::SDFGridStruct * node) -> bool { return node->dist == SDFCollisionSolver::DISTANCE_INVALID; }))
+						if (node.dist == SDFCollisionSolver::DISTANCE_INVALID)
 							continue;
 
-						// Type Flags:
-						// 0: Normal cell
-						// 1: Boundary cell
-						// 2: Zero contour cell
-						int typeFlag = 0;
-						const Eigen::Vector3f cellCenter = sdfSolver->bbox.min()
-						                                   + (index3.cast<float>() + Eigen::Vector3f(0.5f, 0.5f, 0.5f)).cwiseProduct(sdfSolver->d);
+						const Eigen::Vector3f pos = sdfSolver->bbox.min() + index3.cast<float>().cwiseProduct(sdfSolver->d);
 
-						if (std::any_of(nodes.begin() + 1, nodes.end(), [origin] (SDFCollisionSolver::SDFGridStruct *node) -> bool { return (node->dist >= 0.0f && origin->dist <= 0.0f) || (node->dist <= 0.0f && origin->dist >= 0.0f); })) {
-							typeFlag = 1;
-						}
-
-						VPly::AttributedLineStrip l(2, VPly::VPlyIntAttr("type", typeFlag));
-
-						const auto & d = sdfSolver->d;
-
-						Eigen::Vector3f originPos = index3.cast<float>().cwiseProduct(d) + sdfSolver->bbox.min();
-						std::array<Eigen::Vector3f, 8> poses = {
-								originPos,
-								originPos + Eigen::Vector3f(0.0, 0.0, d.z()),
-								originPos + Eigen::Vector3f(0.0, d.y(), 0.0f),
-								originPos + Eigen::Vector3f(0.0, d.y(), d.z()),
-								originPos + Eigen::Vector3f(d.x(), 0.0f, 0.0f),
-								originPos + Eigen::Vector3f(d.x(), 0.0, d.z()),
-								originPos + Eigen::Vector3f(d.x(), d.y(), 0.0f),
-								originPos + Eigen::Vector3f(d.x(), d.y(), d.z())
-						};
-
-						// 0 -> 1 -> 3 -> 2 -> 0 -> 4 -> 6 -> 2 -> 6 -> 7 -> 5 -> 4 -> 5 -> 1 -> 3 -> 7
-						std::array<int, 16> drawIndices = { 0, 1, 3, 2, 0, 4, 6, 2, 6, 7, 5, 4, 5, 1, 3, 7 };
-						for (auto drawIndex : drawIndices) {
-							l.addPoint(
-									EigenUtility::toVPlyVector3f(poses[drawIndex]),
-									VPly::VPlyFloatAttr("d", nodes[drawIndex]->dist),
-									VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(nodes[drawIndex]->vel))
-							);
-						}
-
-						l.stream(os);
-					};
+						VPly::writePoint(
+								os, EigenUtility::toVPlyVector3f(pos),
+								VPly::VPlyVector3iAttr("i3", EigenUtility::toVPlyVector3i(index3)),
+								VPly::VPlyFloatAttr("d", node.dist),
+								VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(node.vel))
+						);
+					}
 		}
 
 	HairEngine_Protected:

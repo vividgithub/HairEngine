@@ -182,6 +182,7 @@ namespace HairEngine {
 
 		std::vector<std::vector<int>> usedBuffers; ///< The buffer to check whether the collision springs have been inserted
 
+		//FIXME
 		CompactNSearch::Spinlock syncLock; ///< Use to protect the modification of particle impulse
 
 		/**
