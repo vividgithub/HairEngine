@@ -22,6 +22,8 @@
 #include "../solver/bone_skinning_animation_data_updater.h"
 #include "../solver/sdf_collision_solver.h"
 
+#include "../cuda/cuda_test.h"
+
 using namespace HairEngine;
 using namespace std;
 using namespace Eigen;
@@ -320,6 +322,7 @@ void testBoneSkinning() {
 int main() {
 //	testOpenMPEnable();
 //	validSolverCorretness();
-	testBoneSkinning();
+//	testBoneSkinning();
+	simpleCUDATest();
 	return 0;
 }
