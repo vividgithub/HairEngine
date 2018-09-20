@@ -517,7 +517,7 @@ namespace HairEngine {
 			for (int32_t i = 0; i < strandSize; ++i)
 				strandSizes.push_back(FileUtility::binaryReadInt32(is));
 
-			init(particlePositions.begin(), strandSizes.begin(), strandSizes.end());
+			init(particlePositions.begin(), strandSizes.begin(), strandSizes.end(), affine);
 		}
 
 

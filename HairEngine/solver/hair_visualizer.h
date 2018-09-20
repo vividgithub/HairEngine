@@ -53,8 +53,9 @@ namespace HairEngine {
 				visualizeHair(os, hair, info);
 		}
 
-	HairEngine_Protected:
 		const VPI * vpi; ///< The VirtualParticleVisualizationInterface pointer
+
+	HairEngine_Protected:
 		bool writeVPly; ///< True to write .vply in the visualization, false to write .hair file
 
 		/**

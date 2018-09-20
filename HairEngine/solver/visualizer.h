@@ -40,7 +40,7 @@ namespace HairEngine {
 				this->directory += StringUtility::getPathSeparator();
 		}
 
-		void solve(Hair& hair, const IntegrationInfo& info) final override {
+		void solve(Hair& hair, const IntegrationInfo& info) override {
 
 			currentTime += info.t;
 
