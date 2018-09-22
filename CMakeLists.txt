@@ -37,7 +37,7 @@ set(
 	HAIRENGINE_COMMON_SOURCE_FILES
 	"${HAIRENGINE_SOURCE_DIR}/geo/hair.cpp"
 	"${HAIRENGINE_EXTERNAL_DIR}/CompactNSearch/src/CompactNSearch.cpp"
-    "${HAIRENGINE_SOURCE_DIR}/cuda/cuda_test.cu"
+    "${HAIRENGINE_SOURCE_DIR}/solver/sdf_collision_solver.cu"
 	) 
 
 # All the include directories
@@ -98,6 +98,8 @@ option(HAIRENGINE_ENABLE_CUDA "Enable cuda for GPU acceleration" ON)
 if (HAIRENGINE_ENABLE_CUDA)
     enable_language(CUDA)
     message(STATUS "Enable cuda...")
+
+    set(CMAKE_CUDA_STANDARD 14)
 
     set(HAIRENGINE_INCLUDE_DIRS ${HAIRENGINE_INCLUDE_DIRS} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
     message(STATUS "Add cuda include directories: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")

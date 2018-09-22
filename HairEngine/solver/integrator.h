@@ -18,6 +18,9 @@ namespace HairEngine {
 	 * to each solver at the simulation time. 
 	 */
 	class Integrator {
+
+		friend class Solver;
+
 	HairEngine_Public:
 		/**
 		 * Constructor
@@ -51,11 +54,15 @@ namespace HairEngine {
 		std::shared_ptr<SolverSubClass> addSolver(Args ...args) {
 			auto solverPtr = std::make_shared<SolverSubClass>(args...);
 
+			solverPtr->hair = hairPtr.get();
+			solverPtr->integrator = this;
+			solverPtrs.push_back(solverPtr);
+			solverPtr->solverIndex = solverPtrs.size();
+
 			// Call the setup function of the solverPtr
 			solverPtr->setup(*hairPtr, previousTransform);
-			solverPtr->hair = hairPtr.get();
 
-			solverPtrs.push_back(solverPtr);
+
 			return solverPtr;
 		}
 
@@ -82,5 +89,22 @@ namespace HairEngine {
 		int currentFrameNumber = 0; ///< Current frame number
 
 		std::vector<std::shared_ptr<Solver>> solverPtrs; ///< The solver pointer that use to guide the simulation
+
+		/**
+		 * Find the last solver with type SolverSubClass in the range [startIndex, endIndex)
+		 * @tparam SolverSubClass The solver type
+		 * @param startIndex The startIndex for searching
+		 * @param endIndex The index for searching
+		 * @return nullptr if no any solver is SolverSubClass, otherwise return the raw pointer of that solver
+		 */
+		template <class SolverSubClass, typename = std::enable_if<std::is_base_of<Solver, SolverSubClass>::value>>
+		SolverSubClass *rfindSolver(int startIndex, int endIndex) {
+			for (int i = endIndex - 1; i >= startIndex; --i) {
+				auto ptr = dynamic_cast<SolverSubClass *>(solverPtrs[i].get());
+				if (ptr)
+					return ptr;
+			}
+			return nullptr;
+		}
 	};
 }

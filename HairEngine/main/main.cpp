@@ -22,8 +22,6 @@
 #include "../solver/bone_skinning_animation_data_updater.h"
 #include "../solver/sdf_collision_solver.h"
 
-#include "../cuda/cuda_test.h"
-
 using namespace HairEngine;
 using namespace std;
 using namespace Eigen;
@@ -269,7 +267,10 @@ void testBoneSkinning() {
 	Eigen::Affine3f initialBoneTransform = bkad.getRestBoneTransform(0);
 
 	// Generate an empty hair
-	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)).resample(1024));
+//	std::vector<int> hairStrandSizes = { };
+//	std::vector<Eigen::Vector3f> hairParticlePoses = { };
+//	const auto hair = make_shared<Hair>(hairParticlePoses.begin(), hairStrandSizes.begin(), hairStrandSizes.end());
+	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)).resample(10245));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, initialBoneTransform);
@@ -281,9 +282,12 @@ void testBoneSkinning() {
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringConf);
 
 	auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
+	auto cudaMemoryConverter = integrator.addSolver<CudaMemoryConverter>(Pos_ | Vel_ | LocalIndex_);
 
 	auto sdfCollisionConf = SDFCollisionConfiguration { {128, 128, 128}, 0.1f, 5, 0.015f, 8.0f, 1e-4f, false };
 	auto sdfCollisionSolver = integrator.addSolver<SDFCollisionSolver>(sdfCollisionConf, boneSkinningUpdater.get());
+
+	auto cudaMemoryInverseConverter = integrator.addSolver<CudaMemoryInverseConverter>(cudaMemoryConverter.get());
 
 //	auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
 //			"/Users/vivi/Desktop/BoneSkinning",
@@ -296,16 +300,23 @@ void testBoneSkinning() {
 	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
 			R"(/Users/vivi/Desktop/HairData)",
 			"TestHair-${F}-Hair.vply",
-			1.f / 24.f,
-			massSpringSolver.get()
+			1.0 / 24.0f,
+			nullptr
 	);
 
-	auto boneSkinningVisualizer = integrator.addSolver<BoneSkinningAnimationDataVisualizer>(
-			R"(/Users/vivi/Desktop/BoneSkinning)",
-			"${F}.vply",
-			1.f / 24.f,
-			&bkad
-	);
+//	auto boneSkinningVisualizer = integrator.addSolver<BoneSkinningAnimationDataVisualizer>(
+//			R"(/Users/vivi/Desktop/BoneSkinning)",
+//			"${F}.vply",
+//			1.f / 24.f,
+//			&bkad
+//	);
+
+//	auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
+//			"/Users/vivi/Desktop/BoneSkinning",
+//			"${F}.vply",
+//			0.0f,
+//			sdfCollisionSolver.get()
+//	);
 
 	gravitySolver->setMass(&massSpringSolver->getParticleMass());
 
@@ -322,7 +333,6 @@ void testBoneSkinning() {
 int main() {
 //	testOpenMPEnable();
 //	validSolverCorretness();
-//	testBoneSkinning();
-	simpleCUDATest();
+	testBoneSkinning();
 	return 0;
 }

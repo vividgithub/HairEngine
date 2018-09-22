@@ -13,6 +13,10 @@
 #include <sstream>
 #include "VPly/vply.h"
 
+#ifdef HAIRENGINE_ENABLE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace HairEngine {
 	namespace EigenUtility {
 		/*
@@ -129,6 +133,16 @@ namespace HairEngine {
 		inline VPly::VPlyVector3i toVPlyVector3i(const Eigen::Vector3i & v) {
 			return { v.x(), v.y(), v.z() };
 		}
+
+#ifdef HAIRENGINE_ENABLE_CUDA
+		inline float3 toFloat3(const Eigen::Vector3f & v) {
+			return { v.x(), v.y(), v.z() };
+		}
+
+		inline Eigen::Vector3f fromFloat3(const float3 & v) {
+			return Eigen::Vector3f(v.x, v.y, v.z);
+		}
+#endif
 	}
 
 }

@@ -58,7 +58,9 @@ namespace HairEngine {
 		virtual ~Solver() = default;
 
 	HairEngine_Protected:
-		Hair *hair = nullptr;
+		Hair *hair = nullptr; ///< The solved hair reference
+		Integrator *integrator = nullptr; ///< The integrator reference
+		int solverIndex = -1; ///< The index for the solver in the integrator
 
 		/* Helper function (used in "solve" context) */
 
