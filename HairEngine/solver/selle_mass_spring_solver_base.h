@@ -267,7 +267,7 @@ namespace HairEngine {
 			// Copy out the result
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 
-				par->vel = vel1[i];
+				Eigen::Vector3f posOld = par->pos;
 
 				if (!(par->localIndex == 0 && isNormalParticle(i)))
 					par->pos = pos1[i];
@@ -275,6 +275,8 @@ namespace HairEngine {
 					// To avoid accumulated calculation error
 					par->pos = info.tr * par->restPos;
 				}
+
+				par->vel = (par->pos - posOld) / info.t;
 			});
 
 			//float t_2 = info.t / 2.0f;
