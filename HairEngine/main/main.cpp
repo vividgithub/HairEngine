@@ -262,15 +262,15 @@ void testSDFReading(const std::string & sdfPath) {
 }
 
 void testBoneSkinning() {
-	BoneSkinningAnimationData bkad("/Users/vivi/Developer/Project/HairEngine/Houdini/Scenes/Head Rotation 1/rotation1.bkad");
+	BoneSkinningAnimationData bkad("/Users/vivi/Developer/Project/HairEngine/Houdini/Scenes/Head Rotation 1/export.bkad");
 
 	Eigen::Affine3f initialBoneTransform = bkad.getRestBoneTransform(0);
 
 	// Generate an empty hair
-//	std::vector<int> hairStrandSizes = { };
-//	std::vector<Eigen::Vector3f> hairParticlePoses = { };
-//	const auto hair = make_shared<Hair>(hairParticlePoses.begin(), hairStrandSizes.begin(), hairStrandSizes.end());
-	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)).resample(10245));
+	//std::vector<int> hairStrandSizes = { };
+	//std::vector<Eigen::Vector3f> hairParticlePoses = { };
+	//const auto hair = make_shared<Hair>(hairParticlePoses.begin(), hairStrandSizes.begin(), hairStrandSizes.end());
+	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Wavy-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)).resample(225));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, initialBoneTransform);
@@ -284,17 +284,10 @@ void testBoneSkinning() {
 	auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
 	auto cudaMemoryConverter = integrator.addSolver<CudaMemoryConverter>(Pos_ | Vel_ | LocalIndex_);
 
-	auto sdfCollisionConf = SDFCollisionConfiguration { {128, 128, 128}, 0.1f, 5, 0.015f, 8.0f, 1e-4f, false };
+	auto sdfCollisionConf = SDFCollisionConfiguration { {128, 128, 128}, 0.1f, 5, 0.0f, 8.0f, 1e-4f, false };
 	auto sdfCollisionSolver = integrator.addSolver<SDFCollisionSolver>(sdfCollisionConf, boneSkinningUpdater.get());
 
 	auto cudaMemoryInverseConverter = integrator.addSolver<CudaMemoryInverseConverter>(cudaMemoryConverter.get());
-
-//	auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
-//			"/Users/vivi/Desktop/BoneSkinning",
-//			"${F}.vply",
-//			0.0f,
-//			sdfCollisionSolver.get()
-//	);
 
 	// Add visualizer
 	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
@@ -304,17 +297,10 @@ void testBoneSkinning() {
 			nullptr
 	);
 
-//	auto boneSkinningVisualizer = integrator.addSolver<BoneSkinningAnimationDataVisualizer>(
-//			R"(/Users/vivi/Desktop/BoneSkinning)",
-//			"${F}.vply",
-//			1.f / 24.f,
-//			&bkad
-//	);
-
 //	auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
 //			"/Users/vivi/Desktop/BoneSkinning",
 //			"${F}.vply",
-//			0.0f,
+//			1.0 / 24.0f,
 //			sdfCollisionSolver.get()
 //	);
 
@@ -322,7 +308,7 @@ void testBoneSkinning() {
 
 	float simulationTime = 1.0f / 120.0f;
 
-	for (int i = 0; i <= 500; i += 1) {
+	for (int i = 1; i <= 500; i += 1) {
 		cout << "Simulation Frame " << i << "..." << endl;
 
 		Eigen::Affine3f currentBoneTransform = bkad.getBoneTransform(0, i * simulationTime);

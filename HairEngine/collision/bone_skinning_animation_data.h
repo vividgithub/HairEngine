@@ -75,7 +75,7 @@ namespace HairEngine {
 		}
 
 		/**
-		 * Get the bone transform from the bone index and a specified time
+		 * Get the bone transform from the bone index and a specified time.
 		 * @param boneIndex The bone index to get the transform
 		 * @param time The time to get the transform
 		 * @return An affine3f transform
@@ -84,14 +84,14 @@ namespace HairEngine {
 			float timeInFrame = time / frameTimeInterval;
 			float alpha = timeInFrame - std::floorf(timeInFrame);
 
-			if (timeInFrame <= 0.0f || timeInFrame >= nframe - 1) {
+			if (timeInFrame <= 1.0f || timeInFrame >= nframe) {
 				// If it is out of range, then copy the first or last transform into ctransforms
-				int offset = (timeInFrame <= 0.0f) ? 0 : (nframe - 1) * nbone;
+				int offset = (timeInFrame <= 1.0f) ? 0 : (nframe - 1) * nbone;
 					return transforms[offset + boneIndex];
 			}
 			else {
 				// Lerp the transform into ctransform
-				int prevOffset = static_cast<int>(timeInFrame) * nbone;
+				int prevOffset = static_cast<int>(timeInFrame - 1) * nbone;
 				int nextOffset = prevOffset + nbone;
 				Eigen::Affine3f prevTransform = transforms[prevOffset + boneIndex];
 				Eigen::Affine3f nextTransform = transforms[nextOffset + boneIndex];

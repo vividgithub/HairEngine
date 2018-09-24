@@ -30,7 +30,7 @@ namespace HairEngine {
 	 */
 	class CudaMemoryConverter: public Solver {
 
-		friend class CudaMemoryBackConverter;
+		friend class CudaMemoryInverseConverter;
 
 	HairEngine_Public:
 

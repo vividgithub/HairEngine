@@ -52,7 +52,9 @@ namespace HairEngine {
 		friend class CollisionImpulseSolver;
 		friend class HairContactsImpulseSolver;
 		friend class SDFCollisionSolver;
-		
+		friend class CudaMemoryConverter;
+		friend class CudaMemoryInverseConverter;
+
 	HairEngine_Public:
 		struct Strand;
 

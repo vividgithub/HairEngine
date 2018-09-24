@@ -17,12 +17,8 @@ namespace HairEngine {
 				Visualizer(directory, filenameTemplate, timestep), bkad(bkad) {}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
+			time += info.t;
 			Visualizer::solve(hair, info);
-			if (time >= 0.0f)
-				time += info.t; // For the second and more simulation
-			else {
-				time = 0.0f; // Set for the first simulation
-			}
 		}
 
 		void visualize(std::ostream &os, Hair &hair, const IntegrationInfo &info) override {
@@ -37,6 +33,6 @@ namespace HairEngine {
 
 	HairEngine_Protected:
 		BoneSkinningAnimationData *bkad; ///< The reference bone skinning data object
-		float time = -1e30f; ///< The total time for simulation
+		float time = 0.0f; ///< The total time for simulation
 	};
 }

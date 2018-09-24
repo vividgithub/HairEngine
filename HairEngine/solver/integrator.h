@@ -82,14 +82,6 @@ namespace HairEngine {
 			previousTransform = transform;
 		}
 
-	HairEngine_Protected:
-		std::shared_ptr<Hair> hairPtr; ///< The simulated hair geometry
-
-		Eigen::Affine3f previousTransform; ///< The affine transform of previous hair geometry
-		int currentFrameNumber = 0; ///< Current frame number
-
-		std::vector<std::shared_ptr<Solver>> solverPtrs; ///< The solver pointer that use to guide the simulation
-
 		/**
 		 * Find the last solver with type SolverSubClass in the range [startIndex, endIndex)
 		 * @tparam SolverSubClass The solver type
@@ -106,5 +98,13 @@ namespace HairEngine {
 			}
 			return nullptr;
 		}
+
+	HairEngine_Protected:
+		std::shared_ptr<Hair> hairPtr; ///< The simulated hair geometry
+
+		Eigen::Affine3f previousTransform; ///< The affine transform of previous hair geometry
+		int currentFrameNumber = 0; ///< Current frame number
+
+		std::vector<std::shared_ptr<Solver>> solverPtrs; ///< The solver pointer that use to guide the simulation
 	};
 }

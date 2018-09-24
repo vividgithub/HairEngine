@@ -637,8 +637,8 @@ namespace HairEngine {
 				);
 
 				for (auto pid : pids) {
-					auto pos = posesHost[pid];
-					l.addPoint({ pos.x, pos.y, pos.z }, VPly::VPlyIntAttr("type", 1));
+					auto pos = EigenUtility::toVPlyVector3f(sdfSolver->pos(pid));
+					l.addPoint(pos, VPly::VPlyIntAttr("type", 1));
 				}
 
 				l.stream(os);
