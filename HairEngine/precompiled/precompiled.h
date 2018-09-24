@@ -4,11 +4,16 @@
 
 #pragma once
 
+#include <string>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <type_traits>
 #include <exception>
+
+#ifdef HAIRENGINE_ENABLE_CUDA
+#include <cuda_runtime.h>
+#endif
 
 /*
  * Safe Delete
@@ -17,6 +22,11 @@
 #define HairEngine_SafeDeleteArray(item_) delete [] item_
 #define HairEngine_AllocatorAllocate(item_, n_) item_ = std::allocator<std::remove_pointer<decltype(item_)>::type>().allocate(n_)
 #define HairEngine_AllocatorDeallocate(item_, n_) if (item_) std::allocator<std::remove_pointer<decltype(item_)>::type>().deallocate(item_, n_)
+
+#ifdef HAIRENGINE_ENABLE_CUDA
+#define HairEngine_CudaAllocatorAllocate(item_, n_) cudaMalloc(&item_, sizeof(std::remove_pointer<decltype(item_)>::type) * n_)
+#define HairEngine_CudaAllocatorDeallocate(item_, n_) cudaFree(item_, sizeof(std::remove_pointer<decltype(item_)>::type) * n_)
+#endif
 
 /*
  * Some useful definitions for debugging so that we could access all the private data in the class
@@ -68,6 +78,20 @@ namespace HairEngine {
 		const char *what() const noexcept override  {
 			return "HairEngine Exception";
 		}
+	};
+
+	class HairEngineInitializationException: public std::exception {
+	HairEngine_Public:
+
+		HairEngineInitializationException(const std::string & message): message(message) {}
+		HairEngineInitializationException(): message("HairEngine Initialization Exception") {}
+
+		const char *what() const noexcept override {
+			return message.c_str();
+		}
+
+	HairEngine_Private:
+		std::string message;
 	};
 
 	class HairEngineIOException: public HairEngineException {

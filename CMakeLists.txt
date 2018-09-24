@@ -3,6 +3,16 @@
 #
 cmake_minimum_required (VERSION 3.12)
 
+macro(set_apple_cuda_rpath _TARGET)
+    if (APPLE)
+        # We need to add the path to the driver (libcuda.dylib) as an rpath,
+        # so that the static cuda runtime can find it at runtime.
+        set_property(TARGET ${_TARGET}
+                PROPERTY
+                BUILD_RPATH ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+    endif()
+endmacro()
+
 project ("HairEngine" CXX)
 
 # Expand the cmake module path
@@ -26,8 +36,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(
 	HAIRENGINE_COMMON_SOURCE_FILES
 	"${HAIRENGINE_SOURCE_DIR}/geo/hair.cpp"
-
 	"${HAIRENGINE_EXTERNAL_DIR}/CompactNSearch/src/CompactNSearch.cpp"
+    "${HAIRENGINE_SOURCE_DIR}/solver/sdf_collision_solver.cu"
 	) 
 
 # All the include directories
@@ -84,6 +94,22 @@ else()
 endif()
 set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} "-DHAIRENGINE_ENABLE_OPENMP")
 
+option(HAIRENGINE_ENABLE_CUDA "Enable cuda for GPU acceleration" ON)
+if (HAIRENGINE_ENABLE_CUDA)
+    enable_language(CUDA)
+    message(STATUS "Enable cuda...")
+
+    set(CMAKE_CUDA_STANDARD 14)
+
+    set(HAIRENGINE_INCLUDE_DIRS ${HAIRENGINE_INCLUDE_DIRS} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+    message(STATUS "Add cuda include directories: ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+    message(STATUS "Add cuda library path: ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
+    set(HAIRENGINE_COMPILE_OPTIONS ${HAIRENGINE_COMPILE_OPTIONS} HAIRENGINE_ENABLE_CUDA)
+    set(HAIRENGINE_LIBRARIES ${HAIRENGINE_LIBRARIES} cudart)
+
+    link_directories(${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+endif()
+
 
 # We use the main file to generate executable files for debugging in testing.
 # But it will not exisit in the git project
@@ -92,6 +118,8 @@ if (EXISTS "${HAIRENGINE_SOURCE_DIR}/main/main.cpp")
 	target_include_directories(HairEngineExecutable PUBLIC ${HAIRENGINE_INCLUDE_DIRS})
 	target_link_libraries(HairEngineExecutable PUBLIC ${HAIRENGINE_LIBRARIES})
 	target_compile_definitions(HairEngineExecutable PUBLIC ${HAIRENGINE_COMPILE_OPTIONS})
+
+    set_apple_cuda_rpath(HairEngineExecutable)
 else()
 endif()
 
@@ -102,4 +130,6 @@ if (HAIRENGINE_COMMON_SOURCE_FILES)
 	target_include_directories(HairEngine PUBLIC ${HAIRENGINE_INCLUDE_DIRS})
 	target_link_libraries(HairEngine PUBLIC ${HAIRENGINE_LIBRARIES})
 	target_compile_definitions(HairEngine PUBLIC ${HAIRENGINE_COMPILE_OPTIONS})
+
+    set_apple_cuda_rpath(HairEngine)
 endif()

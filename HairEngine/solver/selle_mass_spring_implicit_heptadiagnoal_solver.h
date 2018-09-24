@@ -84,8 +84,12 @@ namespace HairEngine {
 			const float f1 = info.t * info.t;
 			const Eigen::Matrix4f f2 = (pmass + damping * info.t) * Eigen::Matrix4f::Identity();
 
+			// Use to compute velocity
+			const Eigen::Matrix4f dtransform = (info.tr.matrix() - info.ptr.matrix()) / info.t;
+			const Eigen::Vector4f dtranslation = Eigen::Vector4f(dtransform(0, 3), dtransform(1, 3), dtransform(2, 3), 0.0f);
+
 			// Parallel solve for each strand
-			ParallismUtility::parallelForWithThreadIndex(0, static_cast<int>(nstrand), [this, pos, vel, outVel, &info, &f1, &f2] (int si, int threadID) {
+			ParallismUtility::parallelForWithThreadIndex(0, static_cast<int>(nstrand), [this, pos, vel, outVel, &info, &f1, &f2, &dtransform, &dtranslation] (int si, int threadID) {
 				auto & _ = dataBuffers[threadID];
 
 				const int particleStartIndex = particleStartIndexForStrand[si];
@@ -132,13 +136,20 @@ namespace HairEngine {
 				// Initialize the b and A of the strand root
 				auto rootPar = p(particleStartIndex);
 
-				Eigen::Vector4f rootParRestPos;
-				rootParRestPos.segment<3>(0) = rootPar->restPos;
-				rootParRestPos(3) = 0.0f;
+//				Eigen::Vector4f rootParRestPos;
+//				rootParRestPos.segment<3>(0) = rootPar->restPos;
+//				rootParRestPos(3) = 1.0f;
+//
+//				Eigen::Matrix4f deltaTransform = info.transform.matrix() - info.previousTransform.matrix();
+//
+//				_.b[0] = (deltaTransform * rootParRestPos) / info.t;
+//				_.b[0](3) = 0.0f;
 
-				Eigen::Matrix4f deltaTransform = info.transform.matrix() - info.previousTransform.matrix();
+				_.b[0].segment<3>(0) = rootPar->restPos;
+				_.b[0](3) = 0.0f;
 
-				_.b[0] = (deltaTransform * rootParRestPos) / info.t;
+				_.b[0] = dtransform * _.b[0] + dtranslation;
+
 				_.A[0][0] = _.A[1][0] = _.A[2][0] = _.A[4][0] = _.A[5][0] = _.A[6][0] = zero;
 				_.A[3][0] = identity;
 

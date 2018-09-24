@@ -8,10 +8,26 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
+#include <istream>
+
+
 #include "../precompiled/precompiled.h"
 
 namespace HairEngine {
 	namespace MathUtility {
+
+		/**
+		 * Return the value whose has the smaller abs value
+		 * @tparam T The type which supports abs(T)
+		 * @param val1 The first value
+		 * @param val2 The second value
+		 * @return The value who has smaller value
+		 */
+		template <typename T>
+		inline T absMin(const T & val1, const T & val2) {
+			return std::abs(val1) < std::abs(val2) ? val1 : val2;
+		}
+
 		template <typename T>
 		inline bool between(const T & value, const T & lowerBound, const T & upperBound) {
 			return (lowerBound < value) && (value < upperBound);
@@ -475,7 +491,7 @@ namespace HairEngine {
 			const Eigen::Vector3f &pos0, const Eigen::Quaternionf &rot0, const Eigen::Vector3f &scale0,
 			const Eigen::Vector3f &pos1, const Eigen::Quaternionf &rot1, const Eigen::Vector3f &scale1)
 		{
-			float one_minus_alpha = 1 - alpha;
+			float one_minus_alpha = 1.0f - alpha;
 
 			Eigen::Affine3f result;
 			result.fromPositionOrientationScale(
@@ -598,6 +614,108 @@ namespace HairEngine {
 				*outD = d * d.transpose();
 
 			return (k * (s * l - l0)) * d;
+		}
+
+		/**
+		 * Get the bounding box from an group of points
+		 * @tparam PointIterator The Iterator which dereference yields an instance of Eigen::Vector3f
+		 * @param pointBegin The begin of the iterator
+		 * @param pointEnd The end of the iterator
+		 * @return A bounding box containning those points
+		 */
+		template <class PointIterator>
+		inline Eigen::AlignedBox3f boundingBox(const PointIterator & pointBegin, const PointIterator & pointEnd) {
+
+			auto it(pointBegin);
+			Eigen::AlignedBox3f bbox(*(it++));
+
+			for (; it != pointEnd; ++it) {
+				bbox.extend(*it);
+			}
+
+			return bbox;
+		}
+
+		/**
+		 * Scale the bounding box
+		 * @param bbox The input bounding box
+		 * @param scale The scale value
+		 * @return The output bounding box will have the same center as the input but the diagnoal size will be scaled
+		 */
+		inline Eigen::AlignedBox3f scaleBoundingBox(const Eigen::AlignedBox3f & bbox, float scale) {
+			Eigen::Vector3f d = (scale * 0.5f) * bbox.diagonal();
+
+			return Eigen::AlignedBox3f(bbox.center() - d, bbox.center() + d);
+		}
+
+		/**
+		 * Get the squared distance from a point the line segment
+		 * @param p The point position
+		 * @param x0 The first line segment vertex position
+		 * @param x1 The second line segment vertex position
+		 * @return The squared distance
+		 */
+		inline float pointToLineSegmentSquaredDistance(const Eigen::Vector3f & p,
+				const Eigen::Vector3f & x0, const Eigen::Vector3f & x1) {
+			Eigen::Vector3f x10 = x1 - x0;
+
+			float t = (x1 - p).dot(x10) / x10.squaredNorm();
+			t = std::max(0.0f, std::min(t, 1.0f));
+
+			return (p - (t * x0 + (1.0f - t)*x1)).squaredNorm();
+		}
+
+		/**
+		 * Get the signed distance for a point to the triangle, the out surface normal
+		 * is defined by (p2 - p0) x (p1 - p0).
+		 * @param p The point
+		 * @param x0 The first vertex position of the triangle
+		 * @param x1 The second vertex position of the triangle
+		 * @param x2 The third vertex position of the triangle
+		 * @param outUV The uv coordinate of the projection point on the triangle plane, in which means the projection
+		 * point p' can be expressed as p' = u * x0 + v * x1 + (1 - u - v) * x2
+		 * @return The signed distance from the point to triangle
+		 */
+		inline float pointToTriangleSignedDistance(const Eigen::Vector3f & p,
+				const Eigen::Vector3f & x0, const Eigen::Vector3f & x1, const Eigen::Vector3f & x2, Eigen::Vector2f *outUV = nullptr) {
+			float d = 0;
+			Eigen::Vector3f x02 = x0 - x2;
+			float l0 = x02.norm() + 1e-30f;
+			x02 = x02 / l0;
+			Eigen::Vector3f x12 = x1 - x2;
+			float l1 = x12.dot(x02);
+			x12 = x12 - l1 * x02;
+			float l2 = x12.norm() + 1e-30f;
+			x12 = x12 / l2;
+			Eigen::Vector3f px2 = p - x2;
+
+			float b = x12.dot(px2) / l2;
+			float a = (x02.dot(px2) - l1*b) / l0;
+			float c = 1 - a - b;
+
+			if (outUV)
+				(*outUV) << a, b;
+
+			// normal vector of triangle. Don't need to normalize this yet.
+			Eigen::Vector3f nTri = (x2 - x0).cross(x1 - x0);
+
+			float tol = 1e-8f;
+
+			if (a >= -tol && b >= -tol && c >= -tol) {
+				// Inside the triangle
+				d = (p - (a * x0 + b * x1 + c * x2)).norm();
+			}
+			else
+			{
+				d = std::min(pointToLineSegmentSquaredDistance(p, x0, x1),
+						pointToLineSegmentSquaredDistance(p, x1, x2));
+				d = std::min(d, pointToLineSegmentSquaredDistance(p, x0, x2));
+			}
+
+			d = sqrt(d);
+			d = ((p - x0).dot(nTri) < 0.f) ? -d : d;
+
+			return d;
 		}
 	}
 }

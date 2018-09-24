@@ -25,6 +25,7 @@ namespace HairEngine {
 		using Affine3fUnaligned = Eigen::Transform<float, 3, Eigen::Affine, Eigen::DontAlign>;
 
 		friend class BoneSkinningAnimationDataVisualizer;
+		friend class BoneSkinningAnimationDataUpdater;
 
 	HairEngine_Public:
 
@@ -49,30 +50,12 @@ namespace HairEngine {
 		 */
 		void update(float time) {
 
-			std::vector<Eigen::Affine3f, Eigen::aligned_allocator<Eigen::Affine3f>> ctransforms(nbone); // Current transforms
+			std::vector<Eigen::Affine3f, Eigen::aligned_allocator<Eigen::Affine3f>> ctransforms; // Current transforms
+			ctransforms.reserve(nbone);
 
 			// Get the transform for all bone skinning
-			float timeInFrame = time / frameTimeInterval;
-			float alpha = timeInFrame - std::floorf(timeInFrame);
-
-			if (timeInFrame <= 0.0f || timeInFrame >= nframe - 1) {
-				// If it is out of range, then copy the first or last transform into ctransforms
-				int offset = (timeInFrame <= 0.0f) ? 0 : (nframe - 1) * nbone;
-				for (int i = 0; i < nbone; ++i) {
-					ctransforms[i] = transforms[offset + i];
-				}
-			}
-			else {
-				// Lerp the transform into ctransform
-				int prevOffset = static_cast<int>(timeInFrame) * nbone;
-				int nextOffset = prevOffset + nbone;
-
-				for (int i = 0; i < nbone; ++i) {
-					Eigen::Affine3f prevTransform = transforms[prevOffset + i];
-					Eigen::Affine3f nextTransform = transforms[nextOffset + i];
-					ctransforms[i] = MathUtility::lerp(alpha, prevTransform, nextTransform);
-				}
-			}
+			for (int i = 0; i < nbone; ++i)
+				ctransforms.push_back(getBoneTransform(i, time));
 
 			// Lerp the position
 			for (int i = 0; i < npoint; ++i) {
@@ -89,6 +72,40 @@ namespace HairEngine {
 					poses[i] += ctransforms[bw.boneIndex] * restPoses[i] * bw.weight;
 				}
 			}
+		}
+
+		/**
+		 * Get the bone transform from the bone index and a specified time
+		 * @param boneIndex The bone index to get the transform
+		 * @param time The time to get the transform
+		 * @return An affine3f transform
+		 */
+		Eigen::Affine3f getBoneTransform(int boneIndex, float time) {
+			float timeInFrame = time / frameTimeInterval;
+			float alpha = timeInFrame - std::floorf(timeInFrame);
+
+			if (timeInFrame <= 0.0f || timeInFrame >= nframe - 1) {
+				// If it is out of range, then copy the first or last transform into ctransforms
+				int offset = (timeInFrame <= 0.0f) ? 0 : (nframe - 1) * nbone;
+					return transforms[offset + boneIndex];
+			}
+			else {
+				// Lerp the transform into ctransform
+				int prevOffset = static_cast<int>(timeInFrame) * nbone;
+				int nextOffset = prevOffset + nbone;
+				Eigen::Affine3f prevTransform = transforms[prevOffset + boneIndex];
+				Eigen::Affine3f nextTransform = transforms[nextOffset + boneIndex];
+				return MathUtility::lerp(alpha, prevTransform, nextTransform);
+			}
+		}
+
+		/**
+		 * Get the rest bone transform from index
+		 * @param boneIndex The bone index
+		 * @return The rest bone transform
+		 */
+		Eigen::Affine3f getRestBoneTransform(int boneIndex) {
+			return restTransforms[boneIndex];
 		}
 
 		/**
@@ -210,6 +227,8 @@ namespace HairEngine {
 		/// The transform for each frame
 		/// Store in continuous memory, which means the size qeuals to [nframe * nbone]
 		std::vector<Affine3fUnaligned> transforms;
+		/// The rest input transform
+		std::vector<Affine3fUnaligned> restTransforms;
 
 		/**
 		 * Initialize the bone skinning from a binary stream (normally a fstream)
@@ -262,7 +281,7 @@ namespace HairEngine {
 				boneWeights.emplace_back(readInt(), readReal());
 			}
 
-			std::vector<Eigen::Affine3f> restTransforms(static_cast<size_t>(nbone));
+			restTransforms.resize(static_cast<size_t>(nbone));
 			for (int i = 0; i < nbone; ++i) {
 				auto & mat = restTransforms[i].matrix();
 				for (int r = 0; r < 4; ++r)

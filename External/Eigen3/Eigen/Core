@@ -37,9 +37,9 @@
     #endif
 
     #define EIGEN_DEVICE_FUNC __host__ __device__
-    // We need math_functions.hpp to ensure that that EIGEN_USING_STD_MATH macro
+    // We need math_functions.hpp (fixed to cuda_runtime.h) to ensure that that EIGEN_USING_STD_MATH macro
     // works properly on the device side
-    #include <math_functions.hpp>
+    #include <cuda_runtime.h>
   #else
     #define EIGEN_DEVICE_FUNC
   #endif
@@ -229,7 +229,7 @@
 #if defined __CUDACC__
   #define EIGEN_VECTORIZE_CUDA
   #include <vector_types.h>
-  #if defined __CUDACC_VER__ && __CUDACC_VER__ >= 70500
+  #if defined __CUDACC_VER__ && __CUDACC_VER_MAJOR__ >= 8
     #define EIGEN_HAS_CUDA_FP16
   #endif
 #endif

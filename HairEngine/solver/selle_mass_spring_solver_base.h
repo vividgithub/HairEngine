@@ -230,6 +230,8 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
+			//FIXME: Rest transform
+
 			// Copy to position buffer
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 				pos1[i] = par->pos;
@@ -239,16 +241,13 @@ namespace HairEngine {
 			const auto startIntegration = std::chrono::high_resolution_clock::now();
 
 			// Setup the split time interval
-			std::vector<float> timeIntervals;
-			// For invalid maxIntegrationTime(<=0.0f), we use 1 integration
+			std::vector<float> timeIntervals = { 0.0f };
 			float tinc = (maxIntegrationTime <= 0.0f) ? 1.0f : maxIntegrationTime / info.t;
-
-			for (float t = 0.0f; t <= 1.0f; t += tinc) {
-				timeIntervals.emplace_back(t);
+			while (timeIntervals.back() + tinc <= 1.0f) {
+				timeIntervals.push_back(timeIntervals.back() + tinc);
 			}
-			if (timeIntervals.back() <= 0.99f * info.t) {
-				timeIntervals.emplace_back(1.0f);
-			}
+			if (timeIntervals.back() <= 0.995f)
+				timeIntervals.push_back(1.0f);
 
 			auto splittedInfos = info.lerp(timeIntervals.cbegin(), timeIntervals.cend());
 
@@ -267,8 +266,17 @@ namespace HairEngine {
 
 			// Copy out the result
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
-				par->vel = vel1[i];
-				par->pos = pos1[i];
+
+				Eigen::Vector3f posOld = par->pos;
+
+				if (!(par->localIndex == 0 && isNormalParticle(i)))
+					par->pos = pos1[i];
+				else {
+					// To avoid accumulated calculation error
+					par->pos = info.tr * par->restPos;
+				}
+
+				par->vel = (par->pos - posOld) / info.t;
 			});
 
 			//float t_2 = info.t / 2.0f;

@@ -7,6 +7,7 @@
 #include <Eigen/Eigen>
 #include <Eigen/StdVector>
 #include <vector>
+#include <istream>
 
 #include "../precompiled/precompiled.h"
 #include "../util/mathutil.h"
@@ -90,12 +91,13 @@ namespace HairEngine {
 			auto preTransform = MathUtility::lerp(preT, ptr, tr);
 
 			IntegrationInfoVector infos;
+
 			for (auto p = begin + 1; p != end; ++p) {
 				auto currentT = *p;
 				auto currentTransform = MathUtility::lerp(currentT, ptr, tr);
 
 				// Construct an IntegrationInfo
-				infos.emplace_back((currentT - preT) * t, preTransform, currentTransform, f);
+				infos.emplace_back((currentT - preT) * t, currentTransform, preTransform, f);
 
 				preT = currentT;
 				preTransform = currentTransform;

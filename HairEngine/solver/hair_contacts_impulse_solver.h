@@ -131,6 +131,7 @@ namespace HairEngine {
 		float breakingDistanceSquared;
 		int maxContactPerSegment;
 
+		//FIXME
 		CompactNSearch::Spinlock syncLock; ///< Use to sync the thread
 
 		std::pair<ContactSpringInfo *, ContactSpringInfo *> getContactSpringRange(int segmentIndex) const {
