@@ -42,11 +42,11 @@ struct TimingSummary {
 
 SelleMassSpringSolverBase::Configuration massSpringCommonConfiguration(
 	50000.0f,
-	20000.0f,
-	20000.0f,
+	10000.0f,
+	10000.0f,
 	2000.0f,
 	15.0f,
-	true,
+	1.05f,
 	4.0f,
 	25.0f,
 	0.0f
@@ -270,7 +270,7 @@ void testBoneSkinning() {
 	//std::vector<int> hairStrandSizes = { };
 	//std::vector<Eigen::Vector3f> hairParticlePoses = { };
 	//const auto hair = make_shared<Hair>(hairParticlePoses.begin(), hairStrandSizes.begin(), hairStrandSizes.end());
-	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Wavy-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)).resample(225));
+	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Curly-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)).resample(5012));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, initialBoneTransform);
@@ -278,7 +278,7 @@ void testBoneSkinning() {
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 
 	auto massSpringConf = massSpringCommonConfiguration;
-	massSpringConf.maxIntegrationTime = 1.0f / 240.0f;
+	massSpringConf.maxIntegrationTime = 1.0f / 480.0f;
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringConf);
 
 	auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
@@ -297,6 +297,13 @@ void testBoneSkinning() {
 			nullptr
 	);
 
+	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
+		R"(/Users/vivi/Desktop/HairData)",
+		"TestHair-${F}-Spring.vply",
+		1.0 / 24.0f,
+		massSpringSolver.get()
+	);
+
 //	auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
 //			"/Users/vivi/Desktop/BoneSkinning",
 //			"${F}.vply",
@@ -304,15 +311,21 @@ void testBoneSkinning() {
 //			sdfCollisionSolver.get()
 //	);
 
-	gravitySolver->setMass(&massSpringSolver->getParticleMass());
-
+	const float gravityScale = 1.0f;
+	float particleMass = gravityScale * massSpringSolver->getParticleMass();
+	gravitySolver->setMass(&particleMass);
 	float simulationTime = 1.0f / 120.0f;
 
-	for (int i = 1; i <= 500; i += 1) {
+	for (int i = 1; i <= 1000; i += 1) {
 		cout << "Simulation Frame " << i << "..." << endl;
 
 		Eigen::Affine3f currentBoneTransform = bkad.getBoneTransform(0, i * simulationTime);
 		integrator.simulate(simulationTime, currentBoneTransform);
+
+//		if (i > 500) {
+//			particleMass = massSpringSolver->getParticleMass();
+//			gravitySolver->setMass(&particleMass);
+//		}
 	}
 }
 

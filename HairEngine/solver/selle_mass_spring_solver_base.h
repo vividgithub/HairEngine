@@ -52,7 +52,11 @@ namespace HairEngine {
 			float torsionStiffness; ///< Stiffness of the torsion spring
 			float altitudeStiffness; ///< Stiffness of the altitude spring
 			float damping; ///< The damping coefficient
-			bool enableStrainLimiting; ///< Enable strain limiting to protect the inextensibility of the hair
+
+			/// If the segment's length is larger than "strainLimitingLengthTolerance * rest_length", then the
+			/// position will be fixed by strain limiting, a value less or equal to 1.0f will disable the strain limiting
+			float strainLimitingLengthTolerance;
+
 			float colinearMaxDegree; ///< We will insert additional virtual particles if two adjacent line segments are "nearly" colinear, we treat the two adjacent line segment colinear is the included angle is less than colinearMaxDegree
 			float mass; ///< The mass of the single hair strand
 
@@ -69,13 +73,14 @@ namespace HairEngine {
 				float torsionStiffness,
 				float altitudeStiffness,
 				float damping,
-				bool enableStrainLimiting,
+				float strainLimitingLengthTolerance,
 				float colinearMaxDegree,
 				float mass,
 				float maxIntegrationTime
 			): stretchStiffness(stretchStiffness), bendingStiffness(bendingStiffness), 
 			torsionStiffness(torsionStiffness), altitudeStiffness(altitudeStiffness), damping(damping),
-			enableStrainLimiting(enableStrainLimiting), colinearMaxDegree(colinearMaxDegree), mass(mass), maxIntegrationTime(maxIntegrationTime) {}
+			strainLimitingLengthTolerance(strainLimitingLengthTolerance),
+			colinearMaxDegree(colinearMaxDegree), mass(mass), maxIntegrationTime(maxIntegrationTime) {}
 		};
 
 		/**
@@ -84,10 +89,15 @@ namespace HairEngine {
 		 * @param Configuration The configuration for initialization
 		 */
 		SelleMassSpringSolverBase( const Configuration & conf): 
-			stretchStiffness(conf.stretchStiffness), bendingStiffness(conf.bendingStiffness), 
-			torsionStiffness(conf.torsionStiffness), altitudeStiffness(conf.altitudeStiffness), damping(conf.damping),
-			enableStrainLimiting(conf.enableStrainLimiting), colinearMaxRad(conf.colinearMaxDegree * 3.141592f / 180.0f), 
-			mass(conf.mass), maxIntegrationTime(conf.maxIntegrationTime) {}
+			stretchStiffness(conf.stretchStiffness),
+			bendingStiffness(conf.bendingStiffness),
+			torsionStiffness(conf.torsionStiffness),
+			altitudeStiffness(conf.altitudeStiffness),
+			damping(conf.damping),
+			strainLimitingLengthTolerance(conf.strainLimitingLengthTolerance),
+			colinearMaxRad(conf.colinearMaxDegree * 3.141592f / 180.0f),
+			mass(conf.mass),
+			maxIntegrationTime(conf.maxIntegrationTime) {}
 
 		void setup(const Hair& hair, const Eigen::Affine3f & currentTransform) override {
 			// Inverse the transform
@@ -238,8 +248,6 @@ namespace HairEngine {
 				vel1[i] = par->vel;
 			});
 
-			const auto startIntegration = std::chrono::high_resolution_clock::now();
-
 			// Setup the split time interval
 			std::vector<float> timeIntervals = { 0.0f };
 			float tinc = (maxIntegrationTime <= 0.0f) ? 1.0f : maxIntegrationTime / info.t;
@@ -259,10 +267,28 @@ namespace HairEngine {
 				std::swap(vel1, vel2);
 			}
 
-			const auto endIntegration = std::chrono::high_resolution_clock::now();
+			// Enable strain limiting
+			if (strainLimitingLengthTolerance > 1.0f) {
+				mapStrand(true, [this] (int si) {
+					auto parBegin = particleStartIndexForStrand[si];
+					auto parEnd = parBegin + nparticleInStrand[si];
 
-			std::chrono::duration<double> diff = endIntegration - startIntegration;
-			integrationTime = diff.count();
+					auto pi = parBegin;
+					for (int i = parBegin + 1; i != parEnd; ++i) {
+						float ltol = (p(i)->restPos - p(pi)->restPos).norm() * strainLimitingLengthTolerance;
+
+						Eigen::Vector3f d = pos1[i] - pos1[pi];
+						float l = d.norm();
+						d /= l;
+
+						if (l > ltol)
+							pos1[i] = pos1[pi] + d * ltol;
+
+						if (isNormalParticle(i))
+							pi = i;
+					}
+				});
+			}
 
 			// Copy out the result
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
@@ -356,7 +382,7 @@ namespace HairEngine {
 		float torsionStiffness;
 		float altitudeStiffness;
 		float damping;
-		bool enableStrainLimiting;
+		float strainLimitingLengthTolerance;
 		float colinearMaxRad;
 		float mass;
 		float maxIntegrationTime;
