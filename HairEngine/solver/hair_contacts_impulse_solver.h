@@ -65,13 +65,17 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
+			std::cout << "[HairContactsImpulseSolver]: Get impulse..." << std::endl;
+
+			ParallismUtility::parallelFor(0, ParallismUtility::getOpenMPMaxHardwareConcurrency(), [this] (int i){
+				std::fill(usedBuffers[i].begin(), usedBuffers[i].end(), -1);
+			});
+
 			// Erase all the distance larger the r, don't parallel since we modify nundirected[_.idx2]
 			ParallismUtility::parallelForWithThreadIndex(0, hair.nsegment, [this, &hair] (int idx1, int threadId) {
 				const auto range = getContactSpringRange(idx1);
 				auto seg1 = hair.segments + idx1;
 				auto & usedBuffer = usedBuffers[threadId];
-
-				std::fill(usedBuffer.begin(), usedBuffer.end(), -1);
 
 				const auto removeEnd = std::remove_if(range.first, range.second, [this, seg1, &hair](const ContactSpringInfo & _) -> bool {
 					return (seg1->midpoint() - (hair.segments + _.idx2)->midpoint()).squaredNorm() > breakingDistanceSquared;
@@ -103,11 +107,18 @@ namespace HairEngine {
 
 					if (usedBuffer[idx2] != idx1 && seg2->strandIndex() != seg1->strandIndex()) {
 						const float l02 = (seg2->midpoint() - seg1->midpoint()).squaredNorm();
-						if (l02 < creatingDistance)
+						if (l02 < creatingDistance * creatingDistance)
 							std::allocator<ContactSpringInfo>().construct(range.first + (ncontacts[idx1]++), idx2, std::sqrt(l02));
 					}
 				}
 			});
+
+			// Summary
+			int totalContacts = 0;
+			for (int i = 0; i < ncontacts.size(); ++i)
+				totalContacts += ncontacts[i];
+
+			std::cout << "[HairContactsImpulseSolver]: Total contacts: " << totalContacts << ", average contacts: " << static_cast<float>(totalContacts) / hair.nsegment << std::endl;
 		}
 
 	HairEngine_Protected :
