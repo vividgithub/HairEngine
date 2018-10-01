@@ -270,7 +270,7 @@ void testBoneSkinning() {
 	//std::vector<int> hairStrandSizes = { };
 	//std::vector<Eigen::Vector3f> hairParticlePoses = { };
 	//const auto hair = make_shared<Hair>(hairParticlePoses.begin(), hairStrandSizes.begin(), hairStrandSizes.end());
-	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-684-p25-Part.hair", initialBoneTransform.inverse(Eigen::Affine)));
+	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-571-p25-Part.hair", initialBoneTransform.inverse(Eigen::Affine)));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, initialBoneTransform);
@@ -278,11 +278,11 @@ void testBoneSkinning() {
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 
 	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.004f);
-	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0030f, 0.0080f, 10, 1000.0f);
+	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0040f, 0.0065f, 10, 1000.0f);
 	//auto collisionImpulseSolver = integrator.addSolver<CollisionImpulseSolver>(segmentKnnSolver.get(), 15, 2500.0f, 6);
 
 	auto massSpringConf = massSpringCommonConfiguration;
-	massSpringConf.maxIntegrationTime = 1.0f / 120.0f;
+	//massSpringConf.maxIntegrationTime = 1.0f / 120.0f;
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringConf);
 
 	auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
@@ -296,18 +296,18 @@ void testBoneSkinning() {
 	// Add visualizer
 	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
 		R"(/Users/vivi/Desktop/HairData)",
-		"TestHair-${F}-Hair.vply",
-		0.0f,
+		"TestHair-${F}-Hair.hair",
+		1.0 / 24.f,
 		nullptr
 	);
 
-	auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
-		R"(/Users/vivi/Desktop/HairContacts)",
-		"TestHair-${F}-HairContacts.vply",
-		0.0f,
-		hairContactsSolver.get(),
-		nullptr
-	);
+//	auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
+//		R"(/Users/vivi/Desktop/HairContacts)",
+//		"TestHair-${F}-HairContacts.vply",
+//		1.0 / 24.f,
+//		hairContactsSolver.get(),
+//		nullptr
+//	);
 
 //	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
 //		R"(/Users/vivi/Desktop/HairData)",
@@ -326,13 +326,13 @@ void testBoneSkinning() {
 	const float gravityScale = 1.0f;
 	float particleMass = gravityScale * massSpringSolver->getParticleMass();
 	gravitySolver->setMass(&particleMass);
-	float simulationTime = 1.0f / 600.0f;
+	float simulationTime = 1.0f / 120.0f;
 
-	for (int i = 1; i <= 100; i += 1) {
+	for (int i = 1; i <= 2500; i += 1) {
 		cout << "Simulation Frame " << i << "..." << endl;
 
 		Eigen::Affine3f currentBoneTransform = bkad.getBoneTransform(0, i * simulationTime);
-		integrator.simulate(simulationTime, initialBoneTransform);
+		integrator.simulate(simulationTime, currentBoneTransform);
 
 //		if (i > 500) {
 //			particleMass = massSpringSolver->getParticleMass();
