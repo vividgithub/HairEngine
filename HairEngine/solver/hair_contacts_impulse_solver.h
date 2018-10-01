@@ -108,7 +108,7 @@ namespace HairEngine {
 					if (usedBuffer[idx2] != idx1 && seg2->strandIndex() != seg1->strandIndex()) {
 						const float l02 = (seg2->midpoint() - seg1->midpoint()).squaredNorm();
 						if (l02 < creatingDistance * creatingDistance)
-							std::allocator<ContactSpringInfo>().construct(range.first + (ncontacts[idx1]++), idx2, std::sqrt(l02));
+							std::allocator<ContactSpringInfo>().construct(range.first + (ncontacts[idx1]++), idx2, creatingDistance);
 					}
 				}
 			});
