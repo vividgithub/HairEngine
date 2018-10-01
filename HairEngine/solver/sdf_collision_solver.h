@@ -25,7 +25,7 @@ void SDFCollisionSolver_cudaComputeSDFGrid(const float3 *poses, const int3 *indi
                                            int npoint, int nprim, int3 n, int margin, float3 origin, float3 d, int nblock, int nthread);
 
 void SDFCollisionSolver_cudaResolveCollision(float3 *parPoses, float3 *parVels, const unsigned char *parLocalIndices, const float3 * vels,
-                                             const unsigned long long *grid, int npar, float3 origin, float3 d, int3 n, float contour, float fraction, bool changeHairRoot, int nblock, int nthread);
+                                             const unsigned long long *grid, int npar, float3 origin, float3 d, int3 n, float time, float fraction, bool changeHairRoot, int nblock, int nthread);
 
 namespace HairEngine {
 
@@ -344,7 +344,7 @@ namespace HairEngine {
 			SDFCollisionSolver_cudaComputeVelocities(prePoses, poses, indices, vels, tInv, nprim(), nblock, nthread);
 		}
 
-		void cudaResolveCollision() {
+		void cudaResolveCollision(float t) {
 			const int & nthred = conf.cudaThreadSize;
 			int nblock = (hair->nparticle + nthred - 1) / nthred;
 
@@ -358,7 +358,7 @@ namespace HairEngine {
 					EigenUtility::toFloat3(bbox.min()),
 					EigenUtility::toFloat3(d),
 					{n.x(), n.y(), n.z() },
-					absContour,
+					t,
 					conf.fraction,
 					conf.changeHairRoot,
 					nblock,
@@ -555,7 +555,7 @@ namespace HairEngine {
 
 //			std::cout << infos.size() << std::endl;
 #else
-			cudaResolveCollision();
+			cudaResolveCollision(info.t);
 #endif
 		}
 

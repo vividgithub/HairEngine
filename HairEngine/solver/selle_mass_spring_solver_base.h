@@ -293,16 +293,19 @@ namespace HairEngine {
 			// Copy out the result
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 
-				Eigen::Vector3f posOld = par->pos;
+//				Eigen::Vector3f posOld = par->pos;
+//				if (!(par->localIndex == 0 && isNormalParticle(i)))
+//					par->pos = pos1[i];
+//				else {
+//					// To avoid accumulated calculation error
+//					par->pos = info.tr * par->restPos;
+//				}
 
-				if (!(par->localIndex == 0 && isNormalParticle(i)))
+				// Commit the position if it is virtual particle
+				par->vel = (pos1[i] - par->pos) / info.t;
+				if (isVirtualParticle(i))
 					par->pos = pos1[i];
-				else {
-					// To avoid accumulated calculation error
-					par->pos = info.tr * par->restPos;
-				}
 
-				par->vel = (par->pos - posOld) / info.t;
 			});
 
 			//float t_2 = info.t / 2.0f;

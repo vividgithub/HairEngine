@@ -262,7 +262,7 @@ void testSDFReading(const std::string & sdfPath) {
 }
 
 void testBoneSkinning() {
-	BoneSkinningAnimationData bkad("/Users/vivi/Developer/Project/HairEngine/Houdini/Scenes/Head Rotation 1/export.bkad");
+	BoneSkinningAnimationData bkad("/Users/vivi/Developer/Project/HairEngine/Houdini/Scenes/Head Rotation 1/Static.bkad");
 
 	Eigen::Affine3f initialBoneTransform = bkad.getRestBoneTransform(0);
 
@@ -270,15 +270,15 @@ void testBoneSkinning() {
 	//std::vector<int> hairStrandSizes = { };
 	//std::vector<Eigen::Vector3f> hairParticlePoses = { };
 	//const auto hair = make_shared<Hair>(hairParticlePoses.begin(), hairStrandSizes.begin(), hairStrandSizes.end());
-	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-571-p25-Part.hair", initialBoneTransform.inverse(Eigen::Affine)));
+	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Curly-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)).resample(543));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, initialBoneTransform);
 
 	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
 
-	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.004f);
-	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0040f, 0.0065f, 10, 1000.0f);
+//	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.004f);
+//	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0040f, 0.01f, 10, 1000.0f);
 	//auto collisionImpulseSolver = integrator.addSolver<CollisionImpulseSolver>(segmentKnnSolver.get(), 15, 2500.0f, 6);
 
 	auto massSpringConf = massSpringCommonConfiguration;
@@ -296,7 +296,7 @@ void testBoneSkinning() {
 	// Add visualizer
 	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
 		R"(/Users/vivi/Desktop/HairData)",
-		"TestHair-${F}-Hair.hair",
+		"TestHair-${F}-Hair.vply",
 		1.0 / 24.f,
 		nullptr
 	);
