@@ -25,11 +25,15 @@ namespace HairEngine {
 				Eigen::Vector3f pos2 = _->p(sp->i2)->pos;
 				float l = (pos2 - pos1).norm();
 
+				float rigidness = (selleMassSpringSolver->particleProps[sp->i1].rigidness +
+						selleMassSpringSolver->particleProps[sp->i2].rigidness) / 2.0f;
+
 				VPly::writeLine(
 					os, EigenUtility::toVPlyVector3f(pos1), EigenUtility::toVPlyVector3f(pos2),
 					VPly::VPlyFloatAttr("k", sp->k),
 					VPly::VPlyFloatAttr("l0", sp->l0),
 					VPly::VPlyFloatAttr("l", l),
+					VPly::VPlyFloatAttr("rg", rigidness),
 					VPly::VPlyIntAttr("type", static_cast<int32_t>(sp->typeID))
 				);
 			}

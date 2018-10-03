@@ -285,8 +285,6 @@ namespace HairEngine {
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			//FIXME: Rest transform
-
 			// Copy to position buffer
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 				pos1[i] = par->pos;
@@ -305,48 +303,49 @@ namespace HairEngine {
 			auto splittedInfos = info.lerp(timeIntervals.cbegin(), timeIntervals.cend());
 
 			for (const auto & splittedInfo : splittedInfos) {
+
 				integrate(pos1, vel1, vel2, splittedInfo);
+
 				ParallismUtility::parallelFor(0, nparticle, [this, &splittedInfo] (int i) {
-					pos1[i] += splittedInfo.t * vel2[i];
+					pos2[i] = pos1[i] + splittedInfo.t * vel2[i];
 				});
+
+				// Enable strain limiting
+				if (strainLimitingLengthTolerance > 1.0f) {
+					mapStrand(true, [this] (int si) {
+						auto parBegin = particleStartIndexForStrand[si];
+						auto parEnd = parBegin + nparticleInStrand[si];
+
+						auto pi = parBegin;
+						for (int i = parBegin + 1; i != parEnd; ++i) {
+							float ltol = (p(i)->restPos - p(pi)->restPos).norm() * strainLimitingLengthTolerance;
+
+							Eigen::Vector3f d = pos2[i] - pos2[pi];
+							float l = d.norm();
+							d /= l;
+
+							if (l > ltol)
+								pos2[i] = pos2[pi] + d * ltol;
+
+							if (isNormalParticle(i))
+								pi = i;
+						}
+					});
+				}
+
+				// Rigidness: interpolate the velocity
+				auto transformFromPrev = splittedInfo.tr * splittedInfo.ptr.inverse(Eigen::Affine);
+				ParallismUtility::parallelFor(0, nparticle, [this, &splittedInfo, &transformFromPrev] (int i) {
+					pos2[i] = MathUtility::lerp(pos2[i], transformFromPrev * pos1[i], particleProps[i].rigidness);
+				});
+
 				std::swap(vel1, vel2);
-			}
-
-			// Enable strain limiting
-			if (strainLimitingLengthTolerance > 1.0f) {
-				mapStrand(true, [this] (int si) {
-					auto parBegin = particleStartIndexForStrand[si];
-					auto parEnd = parBegin + nparticleInStrand[si];
-
-					auto pi = parBegin;
-					for (int i = parBegin + 1; i != parEnd; ++i) {
-						float ltol = (p(i)->restPos - p(pi)->restPos).norm() * strainLimitingLengthTolerance;
-
-						Eigen::Vector3f d = pos1[i] - pos1[pi];
-						float l = d.norm();
-						d /= l;
-
-						if (l > ltol)
-							pos1[i] = pos1[pi] + d * ltol;
-
-						if (isNormalParticle(i))
-							pi = i;
-					}
-				});
+				std::swap(pos1, pos2);
 			}
 
 			// Copy out the result
 			mapParticle(true, [this, &info](Hair::Particle::Ptr par, int i) {
 
-//				Eigen::Vector3f posOld = par->pos;
-//				if (!(par->localIndex == 0 && isNormalParticle(i)))
-//					par->pos = pos1[i];
-//				else {
-//					// To avoid accumulated calculation error
-//					par->pos = info.tr * par->restPos;
-//				}
-
-				// Commit the position if it is virtual particle
 				par->vel = (pos1[i] - par->pos) / info.t;
 				if (isVirtualParticle(i))
 					par->pos = pos1[i];
