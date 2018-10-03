@@ -10,6 +10,7 @@
 #include "hair_visualizer.h"
 #include "../util/mathutil.h"
 #include "../util/parallutil.h"
+#include "../util/parmutil.h"
 
 namespace HairEngine {
 
@@ -53,6 +54,13 @@ namespace HairEngine {
 			float altitudeStiffness; ///< Stiffness of the altitude spring
 			float damping; ///< The damping coefficient
 
+			/// Rigidness defines how rigid of a strand is.
+			/// 1.0 means the strand will behave as rigid as possible, and 0.0 means the strand will be completely driven
+			/// by strand dynamics equations. Since normally hair will be more rigid in hair root and less rigid in the
+			/// tip, the parameter is passed as "VaryingFloat" which x = 0.0 defines the rigidness for the hair root
+			/// and x = 1.0 defines the rigidness for the tip
+			VaryingFloat rigidness;
+
 			/// If the segment's length is larger than "strainLimitingLengthTolerance * rest_length", then the
 			/// position will be fixed by strain limiting, a value less or equal to 1.0f will disable the strain limiting
 			float strainLimitingLengthTolerance;
@@ -73,14 +81,29 @@ namespace HairEngine {
 				float torsionStiffness,
 				float altitudeStiffness,
 				float damping,
+				VaryingFloat rigidness,
 				float strainLimitingLengthTolerance,
 				float colinearMaxDegree,
 				float mass,
 				float maxIntegrationTime
-			): stretchStiffness(stretchStiffness), bendingStiffness(bendingStiffness), 
-			torsionStiffness(torsionStiffness), altitudeStiffness(altitudeStiffness), damping(damping),
+			):
+			stretchStiffness(stretchStiffness),
+			bendingStiffness(bendingStiffness),
+			torsionStiffness(torsionStiffness),
+			altitudeStiffness(altitudeStiffness),
+			damping(damping),
+			rigidness(rigidness),
 			strainLimitingLengthTolerance(strainLimitingLengthTolerance),
-			colinearMaxDegree(colinearMaxDegree), mass(mass), maxIntegrationTime(maxIntegrationTime) {}
+			colinearMaxDegree(colinearMaxDegree),
+			mass(mass),
+			maxIntegrationTime(maxIntegrationTime) {}
+		};
+
+		/**
+		 * Addtional particle property for simulation
+		 */
+		struct ParticleProperty {
+			float rigidness; ///< The rigidness is assigned to each particle by varying floats
 		};
 
 		/**
@@ -94,6 +117,7 @@ namespace HairEngine {
 			torsionStiffness(conf.torsionStiffness),
 			altitudeStiffness(conf.altitudeStiffness),
 			damping(conf.damping),
+			rigidness(conf.rigidness),
 			strainLimitingLengthTolerance(conf.strainLimitingLengthTolerance),
 			colinearMaxRad(conf.colinearMaxDegree * 3.141592f / 180.0f),
 			mass(conf.mass),
@@ -236,6 +260,27 @@ namespace HairEngine {
 				nspringInStrand[si] = nspring - nspringInStrand[si];
 				springStartIndexForStrand[si] = (si > 0) ? springStartIndexForStrand[si - 1] + nspringInStrand[si - 1] : 0;
 			}
+
+			// Setup the particle properties
+			HairEngine_AllocatorAllocate(particleProps, nparticle);
+			mapStrand(true, [this](int si){
+				auto parBegin = particleStartIndexForStrand[si];
+				auto parEnd = parBegin + nparticleInStrand[si];
+
+				// Get the total length of the strand
+				float strandLength = 0.0f;
+				for (int i = parBegin + 1; i != parEnd; ++i)
+					strandLength += (p(i)->restPos - p(i - 1)->restPos).norm();
+
+				float currentLength = 0.0f;
+				for (int i = parBegin; i != parEnd; ++i) {
+					float rl = currentLength / strandLength; // Relative length
+					particleProps[i].rigidness = rigidness(rl);
+
+					if (i != parEnd - 1)
+						currentLength += (p(i + 1)->restPos - p(i)->restPos).norm();
+				}
+			});
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
@@ -352,6 +397,8 @@ namespace HairEngine {
 			HairEngine_SafeDeleteArray(vel1);
 			HairEngine_SafeDeleteArray(vel2);
 			HairEngine_SafeDeleteArray(vel3);
+
+			HairEngine_AllocatorDeallocate(particleProps, nparticle);
 		}
 
 		/* HairVisualizerVirtualParticleVisualizationInterface Interface */
@@ -389,6 +436,7 @@ namespace HairEngine {
 		float colinearMaxRad;
 		float mass;
 		float maxIntegrationTime;
+		VaryingFloat rigidness;
 
 		const Hair *hairPtr;
 
@@ -426,6 +474,8 @@ namespace HairEngine {
 		int nspring; ///< The size of spring array
 		int *nspringInStrand = nullptr; ///< Number of strand in the strand i
 		int *springStartIndexForStrand = nullptr; ///< The start index in the "springs" array for the strand i
+
+		ParticleProperty *particleProps; ///< The addtional property array for particles
 
 		double integrationTime = 0.0f;
 

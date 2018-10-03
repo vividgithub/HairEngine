@@ -78,9 +78,6 @@ namespace HairEngine {
 						VPly::VPlyVector3fAttr("rpos", EigenUtility::toVPlyVector3f(pPtr->restPos)),
 						VPly::VPlyVector3fAttr("vel", EigenUtility::toVPlyVector3f(pPtr->vel)),
 						VPly::VPlyVector3fAttr("im", EigenUtility::toVPlyVector3f(pPtr->impulse)),
-						VPly::VPlyIntAttr("gi", static_cast<int32_t>(pPtr->globalIndex)),
-						VPly::VPlyIntAttr("li", static_cast<int32_t>(pPtr->localIndex)),
-						VPly::VPlyIntAttr("si", static_cast<int32_t>(pPtr->strandIndex)),
 						VPly::VPlyIntAttr("type", 0) // Means normal particle
 					);
 				}
@@ -97,9 +94,6 @@ namespace HairEngine {
 						VPly::VPlyVector3fAttr("rpos", EigenUtility::toVPlyVector3f(p.restPos)),
 						VPly::VPlyVector3fAttr("vel", EigenUtility::toVPlyVector3f(p.vel)),
 						VPly::VPlyVector3fAttr("im", EigenUtility::toVPlyVector3f(p.impulse)),
-						VPly::VPlyIntAttr("gi", static_cast<int32_t>(p.globalIndex)),
-						VPly::VPlyIntAttr("li", static_cast<int32_t>(p.localIndex)),
-						VPly::VPlyIntAttr("si", static_cast<int32_t>(p.strandIndex)),
 						VPly::VPlyIntAttr("type", 1) // Means virtual particle
 					);
 				}

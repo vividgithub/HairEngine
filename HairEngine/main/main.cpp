@@ -8,6 +8,7 @@
 #include "cxxopts.hpp"
 #include "INIReader.h"
 
+#include "../util/parmutil.h"
 #include "../solver/position_commiter.h"
 #include "../solver/force_applier.h"
 #include "../solver/selle_mass_spring_implicit_heptadiagnoal_solver.h"
@@ -16,12 +17,34 @@
 #include "../solver/selle_mass_spring_visualizer.h"
 #include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
 
-int main(int argc, char **argv) {
+using namespace HairEngine;
+using namespace std;
+using namespace Eigen;
+using std::cout;
 
-	using namespace HairEngine;
-	using namespace std;
-	using namespace Eigen;
-	using std::cout;
+/**
+ * Get varying float from a string
+ * @param s The string
+ * @return A varying float variable
+ */
+VaryingFloat getVaryingFloat(const std::string & s) {
+	istringstream is(s);
+
+	std::vector<float> xy;
+	while (is) {
+		xy.emplace_back();
+		is >> xy.back();
+	}
+
+	HairEngine_DebugAssert(is.size() % 2 == 0);
+
+	auto xBegin = xy.begin();
+	auto xEnd = xBegin + xy.size() / 2;
+
+	return VaryingFloat(xBegin, xEnd, xEnd);
+}
+
+int main(int argc, char **argv) {
 
 	cxxopts::Options cmdOptions("HairEngine[cmd]", "HairEngine command line tool");
 
@@ -98,11 +121,20 @@ int main(int argc, char **argv) {
 			ini.GetReal("massspring", "torsion_stiffness"),
 			ini.GetReal("massspring", "altitude_stiffness"),
 			ini.GetReal("massspring", "damping"),
+			getVaryingFloat(ini.Get("massspring", "rigidness")),
 			ini.GetReal("massspring", "strain_limiting_tolerance"),
 			ini.GetReal("massspring", "colinear_max_degree"),
 			ini.GetReal("massspring", "mass"),
 			1.0f / ini.GetReal("massspring", "max_integration_fps")
 	);
+
+	// Check rigidness
+	cout << "Rigidness Check: " << endl;
+	for (float i = 0.0f; i <= 1.0f; i += 0.01f) {
+		cout << i << ": " << massSpringConf.rigidness(i) << endl;
+	}
+	cout << endl;
+
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringConf);
 
 	auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
