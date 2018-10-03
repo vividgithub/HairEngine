@@ -82,7 +82,7 @@ namespace HairEngine {
 			std::stringstream ss;
 			ss << indexCounter;
 
-			auto filename = StringUtility::replace(filenameTemplate, "${F}", ss.str());
+			auto filename = StringUtility::replace(filenameTemplate, "%d", ss.str());
 
 			std::string filepath = directory + filename;
 			return filepath;

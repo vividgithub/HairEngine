@@ -47,6 +47,8 @@ set(
 	"${HAIRENGINE_EXTERNAL_DIR}/Eigen3" # Eigen3
 	"${HAIRENGINE_EXTERNAL_DIR}/VPly/cpp" # VPly 
 	"${HAIRENGINE_EXTERNAL_DIR}/CompactNSearch/include" # CompactNSearch
+    "${HAIRENGINE_EXTERNAL_DIR}/cxxopts"
+    "${HAIRENGINE_EXTERNAL_DIR}/inih"
 	) 
 
 # All the external libraries

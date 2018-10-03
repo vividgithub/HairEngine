@@ -1,140 +1,190 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <cstdio>
 
 #include "Eigen/StdVector"
 
-#include "../geo/hair.h"
-#include "../solver/integrator.h"
-#include "../solver/force_applier.h"
-#include "../solver/hair_visualizer.h"
-#include "../solver/selle_mass_spring_semi_implicit_euler_solver.h"
-#include "../solver/selle_mass_spring_implicit_solver.h"
-#include "../solver/selle_mass_spring_visualizer.h"
-#include "../solver/selle_mass_spring_implicit_heptadiagnoal_solver.h"
+#include "cxxopts.hpp"
+#include "INIReader.h"
+
 #include "../solver/position_commiter.h"
-#include "../solver/signed_distance_field_solid_collision_solver.h"
-#include "../solver/segment_knn_solver.h"
-#include "../solver/segment_knn_solver_visualizer.h"
-#include "../solver/hair_contacts_impulse_solver.h"
-#include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
-#include "../solver/bone_skinning_animation_data_visualizer.h"
+#include "../solver/force_applier.h"
+#include "../solver/selle_mass_spring_implicit_heptadiagnoal_solver.h"
+#include "../solver/collision_impulse_solver.h"
 #include "../solver/bone_skinning_animation_data_updater.h"
-#include "../solver/sdf_collision_solver.h"
+#include "../solver/selle_mass_spring_visualizer.h"
+#include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
 
-using namespace HairEngine;
-using namespace std;
-using namespace Eigen;
-using std::cout;
+int main(int argc, char **argv) {
 
-struct TimingSummary {
-	int nstrand;
-	int nparticle;
-	std::string simulatorName;
-	double totalTime;
-	double averageStrandTime;
-	double averageParticleTime;
+	using namespace HairEngine;
+	using namespace std;
+	using namespace Eigen;
+	using std::cout;
 
-	TimingSummary(int nstrand, int nparticle, std::string simulatorName, double totalTime):
-		nstrand(nstrand), nparticle(nparticle), simulatorName(std::move(simulatorName)), totalTime(totalTime),
-		averageStrandTime(totalTime / nstrand), averageParticleTime(averageStrandTime / nparticle) {}
-};
+	cxxopts::Options cmdOptions("HairEngine[cmd]", "HairEngine command line tool");
 
-SelleMassSpringSolverBase::Configuration massSpringCommonConfiguration(
-	20000.0f,
-	10000.0f,
-	10000.0f,
-	2000.0f,
-	15.0f,
-	1.05f,
-	4.0f,
-	25.0f,
-	0.0f
-);
+	cmdOptions.add_options()("i,input", "The input \".ini\" file", cxxopts::value<std::string>());
+	auto result = cmdOptions.parse(argc, argv);
 
-void testBoneSkinning() {
-	BoneSkinningAnimationData bkad("/Users/vivi/Developer/Project/HairEngine/Houdini/Scenes/Head Rotation 1/Rotation1.bkad");
+	if (result.count("input") == 0) {
+		std::cout << "Please specify the configuration file" << std::endl;
+		return 1;
+	}
+
+	auto iniFilePath = result["input"].as<string>();
+	INIReader ini(iniFilePath);
+
+	BoneSkinningAnimationData bkad(ini.Get("hair", "bkad_path"));
 
 	Eigen::Affine3f initialBoneTransform = bkad.getRestBoneTransform(0);
 
 	// Generate an empty hair
-	//std::vector<int> hairStrandSizes = { };
-	//std::vector<Eigen::Vector3f> hairParticlePoses = { };
-	//const auto hair = make_shared<Hair>(hairParticlePoses.begin(), hairStrandSizes.begin(), hairStrandSizes.end());
-	const auto hair = make_shared<Hair>(Hair("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Curly-50000-p25.hair", initialBoneTransform.inverse(Eigen::Affine)));
+	const auto hair = make_shared<Hair>(Hair(ini.Get("hair", "path"), initialBoneTransform.inverse(Eigen::Affine)).resample(ini.GetInteger("hair", "resample_rate")));
 
 	cout << "Creating integrator..." << endl;
 	Integrator integrator(hair, initialBoneTransform);
 
-	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, Vector3f(0.0f, -9.81f, 0.0f));
+	Eigen::Vector3f gravity = Eigen::Vector3f(
+			ini.GetReal("common", "gravityx"),
+			ini.GetReal("common", "gravityy"),
+			ini.GetReal("common", "gravityz")
+	);
+	auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, gravity);
 
-	auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(0.004f);
-	auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(segmentKnnSolver.get(), 0.0040f, 0.012f, 10, 1000.0f);
-	//auto collisionImpulseSolver = integrator.addSolver<CollisionImpulseSolver>(segmentKnnSolver.get(), 15, 2500.0f, 6);
+	auto enableHairContacts = ini.GetBoolean("haircontacts", "enable");
+	auto enableHairCollisions = ini.GetBoolean("haircollisions", "enable");
 
-	auto massSpringConf = massSpringCommonConfiguration;
-	//massSpringConf.maxIntegrationTime = 1.0f / 120.0f;
+	HairContactsImpulseSolver *hairContactsSolverPtr = nullptr;
+	CollisionImpulseSolver *hairCollisionSolverPtr = nullptr;
+
+	if (enableHairContacts || enableHairCollisions) {
+		float knnRadius = 0.0f;
+		if (enableHairContacts)
+			knnRadius = std::max(knnRadius, ini.GetReal("haircontacts", "creating_distance"));
+		if (enableHairCollisions)
+			knnRadius = std::max(knnRadius, ini.GetReal("haircollisions", "check_distance"));
+
+		auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(knnRadius);
+
+		if (enableHairContacts) {
+			auto hairContactsSolver = integrator.addSolver<HairContactsImpulseSolver>(
+					segmentKnnSolver.get(),
+					ini.GetReal("haircontacts", "creating_distance"),
+					ini.GetReal("haircontacts", "breaking_distance"),
+					ini.GetInteger("haircontacts", "max_contacts"),
+					ini.GetInteger("haircontacts", "stiffness")
+			);
+
+			hairContactsSolverPtr = hairContactsSolver.get();
+		}
+
+		if (enableHairCollisions) {
+			auto hairCollisionSolver = integrator.addSolver<CollisionImpulseSolver>(
+					segmentKnnSolver.get(),
+					ini.GetInteger("haircollisions", "max_collisions"),
+					ini.GetReal("haircollisions", "stiffness"),
+					ini.GetInteger("haircollisions", "max_collisions_force_count")
+			);
+
+			hairCollisionSolverPtr = hairCollisionSolver.get();
+		}
+	}
+
+	auto massSpringConf = SelleMassSpringSolverBase::Configuration(
+			ini.GetReal("massspring", "stretch_stiffness"),
+			ini.GetReal("massspring", "bending_stiffness"),
+			ini.GetReal("massspring", "torsion_stiffness"),
+			ini.GetReal("massspring", "altitude_stiffness"),
+			ini.GetReal("massspring", "damping"),
+			ini.GetReal("massspring", "strain_limiting_tolerance"),
+			ini.GetReal("massspring", "colinear_max_degree"),
+			ini.GetReal("massspring", "mass"),
+			1.0f / ini.GetReal("massspring", "max_integration_fps")
+	);
 	auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringConf);
 
 	auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
-	auto cudaMemoryConverter = integrator.addSolver<CudaMemoryConverter>(Pos_ | Vel_ | LocalIndex_);
 
-	auto sdfCollisionConf = SDFCollisionConfiguration { {128, 128, 128}, 0.1f, 5, 0.0f, 50.0f, 1e-4f, false };
-	auto sdfCollisionSolver = integrator.addSolver<SDFCollisionSolver>(sdfCollisionConf, boneSkinningUpdater.get());
+	SDFCollisionSolver *sdfCollisionSolverPtr = nullptr;
+	if (ini.GetBoolean("sdf", "enable")) {
+		auto cudaMemoryConverter = integrator.addSolver<CudaMemoryConverter>(Pos_ | Vel_ | LocalIndex_);
 
-	auto cudaMemoryInverseConverter = integrator.addSolver<CudaMemoryInverseConverter>(cudaMemoryConverter.get());
+		auto sdfCollisionConf = SDFCollisionConfiguration {
+				{ini.GetInteger("sdf", "resolutionx"), ini.GetInteger("sdf", "resolutiony"), ini.GetInteger("sdf", "resolutionz")},
+				ini.GetReal("sdf", "bbox_extend"),
+				ini.GetInteger("sdf", "margin"),
+				0.0f,
+				ini.GetReal("sdf", "friction"),
+				ini.GetReal("sdf", "degeneration_factor"),
+				ini.GetBoolean("sdf", "change_hair_root"),
+				32 * ini.GetInteger("sdf", "cuda_wrap_size")
+		};
+		auto sdfCollisionSolver = integrator.addSolver<SDFCollisionSolver>(sdfCollisionConf, boneSkinningUpdater.get());
+		auto cudaMemoryInverseConverter = integrator.addSolver<CudaMemoryInverseConverter>(cudaMemoryConverter.get());
+	}
+	else {
+		integrator.addSolver<PositionCommiter>();
+	}
 
-	// Add visualizer
-	auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
-		R"(/Users/vivi/Desktop/HairData)",
-		"TestHair-${F}-Hair.hair",
-		1.0 / 24.f,
-		nullptr
-	);
+	if (ini.GetBoolean("visualize", "hair_enable")) {
+		auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
+				ini.Get("visualize", "hair_folder"),
+				ini.Get("visualize", "hair_name_pattern"),
+				bkad.getFrameTimeInterval(),
+				nullptr
+		);
+	}
 
-//	auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
-//		R"(/Users/vivi/Desktop/HairContacts)",
-//		"TestHair-${F}-HairContacts.vply",
-//		1.0 / 24.f,
-//		hairContactsSolver.get(),
-//		nullptr
-//	);
+	if (ini.GetBoolean("visualize", "spring_enable")) {
+		auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
+				ini.Get("visualize", "spring_folder"),
+				ini.Get("visualize", "spring_name_pattern"),
+				bkad.getFrameTimeInterval(),
+				massSpringSolver.get()
+		);
+	}
 
-//	auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
-//		R"(/Users/vivi/Desktop/HairData)",
-//		"TestHair-${F}-Spring.vply",
-//		1.0 / 24.0f,
-//		massSpringSolver.get()
-//	);
-//
-//	auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
-//			"/Users/vivi/Desktop/BoneSkinning",
-//			"${F}.vply",
-//			1.0 / 24.0f,
-//			sdfCollisionSolver.get()
-//	);
+	if (ini.GetBoolean("visualize", "hair_contacts_enable")) {
+		auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
+				ini.Get("visualize", "hair_contacts_folder"),
+				ini.Get("visualize", "hair_contacts_name_pattern"),
+				bkad.getFrameTimeInterval(),
+				hairContactsSolverPtr,
+			    nullptr
+		);
+	}
 
-	const float gravityScale = 1.0f;
-	float particleMass = gravityScale * massSpringSolver->getParticleMass();
-	gravitySolver->setMass(&particleMass);
-	float simulationTime = 1.0f / 120.0f;
+	if (ini.GetBoolean("visualize", "hair_collisions_enable")) {
+		auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
+				ini.Get("visualize", "hair_collisions_folder"),
+				ini.Get("visualize", "hair_collisions_name_pattern"),
+				bkad.getFrameTimeInterval(),
+				nullptr,
+				hairCollisionSolverPtr
+		);
+	}
 
-	for (int i = 1; i <= 2500; i += 1) {
+	if (ini.GetBoolean("visualize", "sdf_collisions_enable")) {
+		auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
+			ini.Get("visualize", "sdf_collisions_folder"),
+			ini.Get("visualize", "sdf_collisions_name_pattern"),
+			bkad.getFrameTimeInterval(),
+			sdfCollisionSolverPtr
+		);
+	}
+
+	gravitySolver->setMass(&massSpringSolver->getParticleMass());
+
+	float simulationTime = 1.0f / ini.GetReal("integrator", "integration_fps");
+
+	int totalSimulationFrame = static_cast<int>(ini.GetInteger("common", "simulation_frame_count")
+			* bkad.getFrameTimeInterval() / simulationTime);
+
+	for (int i = 1; i <= totalSimulationFrame; i += 1) {
 		cout << "Simulation Frame " << i << "..." << endl;
-
 		Eigen::Affine3f currentBoneTransform = bkad.getBoneTransform(0, i * simulationTime);
 		integrator.simulate(simulationTime, currentBoneTransform);
-
-//		if (i > 500) {
-//			particleMass = massSpringSolver->getParticleMass();
-//			gravitySolver->setMass(&particleMass);
-//		}
 	}
-}
-
-int main() {
-//	testOpenMPEnable();
-//	validSolverCorretness();
-	testBoneSkinning();
-	return 0;
 }
