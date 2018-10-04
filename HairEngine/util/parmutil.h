@@ -39,8 +39,6 @@ namespace HairEngine {
 			for (; xit != xEnd; ++xit, ++yit)
 				points.emplace_back(*xit, *yit);
 
-			HairEngine_DebugAssert(points.x() >= 0.0f && points.y() <= 1.0f);
-
 			// Sort with the increasing order of x
 			std::sort(points.begin(), points.end(), [](const Eigen::Vector2f & p1, const Eigen::Vector2f &p2){
 				return p1.x() < p2.x();
