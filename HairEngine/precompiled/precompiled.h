@@ -25,7 +25,6 @@
 
 #ifdef HAIRENGINE_ENABLE_CUDA
 #define HairEngine_CudaAllocatorAllocate(item_, n_) cudaMalloc(&item_, sizeof(std::remove_pointer<decltype(item_)>::type) * n_)
-#define HairEngine_CudaAllocatorDeallocate(item_, n_) cudaFree(item_, sizeof(std::remove_pointer<decltype(item_)>::type) * n_)
 #endif
 
 /*

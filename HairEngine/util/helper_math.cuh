@@ -1507,4 +1507,9 @@ inline __device__ __host__ float cudaPointToTriangleSignedDistance(float3 p, flo
 	return d;
 }
 
+inline __device__ __host__
+uint32_t getHashValueFromIndex3(int3 index3, int shift) {
+	return (73856093u * (uint32_t)index3.x + 19349663u * (uint32_t)index3.y + 83492791u * (uint32_t)index3.z) & ((1 << shift) - 1);
+}
+
 #endif

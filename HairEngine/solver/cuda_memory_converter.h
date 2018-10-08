@@ -126,25 +126,25 @@ namespace HairEngine {
 	 */
 	class CudaMemoryInverseConverter: public Solver {
 	HairEngine_Public:
-		CudaMemoryInverseConverter(CudaMemoryConverter * cudaMemoryConverter):
-			cudaMemoryConverter(cudaMemoryConverter) {}
+		CudaMemoryInverseConverter(CudaMemoryConverter * cudaMemoryConverter, int copyOptions = Pos_ | Vel_ | Impulse_):
+			cudaMemoryConverter(cudaMemoryConverter), copyOptions(copyOptions) {}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 			auto & cmc = cudaMemoryConverter; // Short name
 
-			if (cmc->parPoses) {
+			if (cmc->parPoses && (copyOptions & Pos_)) {
 				CudaUtility::copyFromDeviceToHost(cmc->parBufferHost, cmc->parPoses, hair.nparticle);
 				for (int i = 0; i < hair.nparticle; ++i)
 					hair.particles[i].pos = EigenUtility::fromFloat3(cmc->parBufferHost[i]);
 			}
 
-			if (cmc->parVels) {
+			if (cmc->parVels && (copyOptions & Vel_)) {
 				CudaUtility::copyFromDeviceToHost(cmc->parBufferHost, cmc->parVels, hair.nparticle);
 				for (int i = 0; i < hair.nparticle; ++i)
 					hair.particles[i].vel = EigenUtility::fromFloat3(cmc->parBufferHost[i]);
 			}
 
-			if (cmc->parImpulses) {
+			if (cmc->parImpulses && (copyOptions & Impulse_)) {
 				CudaUtility::copyFromDeviceToHost(cmc->parBufferHost, cmc->parImpulses, hair.nparticle);
 				for (int i = 0; i < hair.nparticle; ++i)
 					hair.particles[i].impulse = EigenUtility::fromFloat3(cmc->parBufferHost[i]);
@@ -153,6 +153,7 @@ namespace HairEngine {
 
 	HairEngine_Protected:
 		CudaMemoryConverter *cudaMemoryConverter;
+		int copyOptions;
 	};
 }
 

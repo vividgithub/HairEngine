@@ -38,7 +38,10 @@ set(
 	"${HAIRENGINE_SOURCE_DIR}/geo/hair.cpp"
 	"${HAIRENGINE_EXTERNAL_DIR}/CompactNSearch/src/CompactNSearch.cpp"
     "${HAIRENGINE_SOURCE_DIR}/solver/sdf_collision_solver.cu"
-	) 
+    "${HAIRENGINE_SOURCE_DIR}/accel/particle_spatial_hashing.cu"
+    "${HAIRENGINE_SOURCE_DIR}/solver/cuda_segment_midpoint_computer.cu"
+    "${HAIRENGINE_SOURCE_DIR}/solver/hair_contacts_impulse_cuda_solver.cu"
+	)
 
 # All the include directories
 set(
@@ -49,7 +52,7 @@ set(
 	"${HAIRENGINE_EXTERNAL_DIR}/CompactNSearch/include" # CompactNSearch
     "${HAIRENGINE_EXTERNAL_DIR}/cxxopts"
     "${HAIRENGINE_EXTERNAL_DIR}/inih"
-	) 
+	)
 
 # All the external libraries
 set(HAIRENGINE_LIBRARIES) 

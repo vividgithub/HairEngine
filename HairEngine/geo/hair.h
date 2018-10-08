@@ -218,8 +218,6 @@ namespace HairEngine {
 			}
 		};
 
-	HairEngine_Protected:
-
 		Particle *particles = nullptr; ///< All particles in the hair geometry
 		int nparticle = 0; ///< Number of particles
 

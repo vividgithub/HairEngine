@@ -152,6 +152,5 @@ namespace HairEngine {
 
 			return ret;
 		}
-
 	};
 }
