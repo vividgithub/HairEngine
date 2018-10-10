@@ -1,7 +1,7 @@
 #ifdef HAIRENGINE_ENABLE_CUDA
 
 #include <cstdio>
-#include "HairEngine/HairEngine/util/helper_math.h"
+#include "../util/helper_math.h"
 
 namespace HairEngine {
 
