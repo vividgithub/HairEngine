@@ -1,5 +1,5 @@
 
-#include "../util/helper_math.h"
+#include "../util/cuda_helper_math.h"
 
 namespace HairEngine {
 

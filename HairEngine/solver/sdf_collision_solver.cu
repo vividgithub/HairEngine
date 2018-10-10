@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <device_functions.h>
-#include "../util/helper_math.h"
+#include "../util/cuda_helper_math.h"
 
 
 __global__
