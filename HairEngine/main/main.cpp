@@ -268,7 +268,7 @@ int main(int argc, char **argv) {
 			auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
 					ini.Get("visualize", "hair_folder"),
 					ini.Get("visualize", "hair_name_pattern"),
-					0.0f,
+					bkad.getFrameTimeInterval(),
 					nullptr
 			);
 		}
@@ -286,7 +286,7 @@ int main(int argc, char **argv) {
 			auto hairContactsVisualizer = integrator.addSolver<HairContactsImpulseCudaVisualizer>(
 					ini.Get("visualize", "hair_contacts_folder"),
 					ini.Get("visualize", "hair_contacts_name_pattern"),
-					0.0f,
+					bkad.getFrameTimeInterval(),
 					hairContactsSolverPtr
 			);
 		}
