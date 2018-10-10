@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <device_functions.h>
-#include "../util/helper_math.cuh"
+#include "HairEngine/HairEngine/util/helper_math.h"
 
 
 __global__

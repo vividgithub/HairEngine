@@ -1,5 +1,5 @@
 
-#include "../util/helper_math.cuh"
+#include "HairEngine/HairEngine/util/helper_math.h"
 
 namespace HairEngine {
 

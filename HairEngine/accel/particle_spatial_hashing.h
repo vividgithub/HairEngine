@@ -5,7 +5,7 @@
 #pragma once
 #include <algorithm>
 #include <cuda_runtime.h>
-#include "../util/helper_math.cuh"
+#include "HairEngine/HairEngine/util/helper_math.h"
 #include "../util/cudautil.h"
 #include "../util/parallutil.h"
 #include "../precompiled/precompiled.h"
