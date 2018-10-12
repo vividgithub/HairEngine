@@ -21,8 +21,12 @@
 namespace HairEngine {
 
 	void HairContactsImpulseCudaSolver_updateContactsSpring(const int *hashSegStarts, const int *hashSegEnds,
-			const int *sids, const float3 *midpoints, const int *segStrandIndices, int *contacts, int *numContacts, float3 *parImpulses,
-			int numSegment, float lCreate, float lBreak, int maxContacts, float k, float3 dInv, int hashShift, int wrapSize);
+	                                                        const int *sids, const float3 *midpoints,
+	                                                        const int *segStrandIndices, int *contacts,
+	                                                        int *numContacts, float3 *parImpulses,
+	                                                        int numSegment, float lCreate, float lBreak,
+	                                                        int maxContacts, float k, float3 dInv,
+	                                                        int hashShift, int wrapSize);
 
 	class HairContactsImpulseCudaSolver: public CudaBasedSolver {
 	HairEngine_Public:

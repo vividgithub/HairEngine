@@ -21,48 +21,30 @@ namespace HairEngine {
 		int sid1StrandIndex = segStrandIndices[sid1];
 
 		float3 center = midpoints[sid1];
+		float3 force = make_float3(0.0f);
 
 		// Delete the old segments
 		int *contactsStarts = contacts + sid1 * maxContacts;
 		int n = 0; // An updated numContact
 
-		// TODO: Move it to the back
-		float3 force = make_float3(0.0f);
 		for (int i = 0; i < numContacts[sid1]; ++i) {
 			int sid2 = contactsStarts[i];
 
 			float3 d = midpoints[sid2] - center;
 			float l = length(d) + 1e-30f;
-			d /= l;
 
 			if (l < lBreak) {
-				force += d * (l - lCreate);
 				contactsStarts[n++] = contactsStarts[i];
+				force += d * (1.0f - lCreate / l);
 			}
 		}
-
-		force *= k;
-
-		// Add the force to the impulse array with pid = sid +
-		int pid = sid1 + segStrandIndices[sid1];
-		float *impulseData = reinterpret_cast<float*>(parImpulses + pid);
-
-		// The first connected particle
-		atomicAdd(impulseData, force.x);
-		atomicAdd(impulseData + 1, force.y);
-		atomicAdd(impulseData + 2, force.z);
-
-		// The second connected particle
-		atomicAdd(impulseData + 3, force.x);
-		atomicAdd(impulseData + 4, force.y);
-		atomicAdd(impulseData + 5, force.z);
 
 		// Search for new contacts
 		int3 index3Max, index3Min;
 		int n_;
 
 		if (n == maxContacts)
-			goto WriteBackNumContacts;
+			goto ComputeForce;
 
 		index3Max = make_int3((center + lCreate) * dInv); // Ceiling
 		index3Min = make_int3((center - lCreate) * dInv); // Floor
@@ -86,7 +68,10 @@ namespace HairEngine {
 						if (sid2 == sid1 || segStrandIndices[sid2] == sid1StrandIndex)
 							continue;
 
-						if (length(center - midpoints[sid2]) < lCreate) {
+						float3 d = midpoints[sid2] - center;
+						float l = length(d) + 1e-30f;
+
+						if (l < lCreate) {
 							// Check whether it is added
 							bool added = false;
 							for (int i = 0; i < n_; ++i) if (contactsStarts[i] == sid2) {
@@ -96,14 +81,29 @@ namespace HairEngine {
 
 							if (!added) {
 								contactsStarts[n++] = sid2;
+								force += d * (1.0f - lCreate / l);
 								if (n == maxContacts)
-									goto WriteBackNumContacts;
+									goto ComputeForce;
 							}
 						}
 					}
 				}
 
-		WriteBackNumContacts:
+		ComputeForce:
+
+		force *= k;
+
+		// Write the force to the segment and to the particle
+		int pid = sid1 + segStrandIndices[sid1];
+		float *parImpulses_ = reinterpret_cast<float*>(parImpulses + pid);
+
+		atomicAdd(parImpulses_, force.x);
+		atomicAdd(parImpulses_ + 1, force.y);
+		atomicAdd(parImpulses_ + 2, force.z);
+
+		atomicAdd(parImpulses_ + 3, force.x);
+		atomicAdd(parImpulses_ + 4, force.y);
+		atomicAdd(parImpulses_ + 5, force.z);
 
 		numContacts[sid1] = n;
 	}
