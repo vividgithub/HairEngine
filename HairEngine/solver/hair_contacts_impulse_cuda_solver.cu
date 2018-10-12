@@ -1,9 +1,12 @@
 #ifdef HAIRENGINE_ENABLE_CUDA
 
 #include <cstdio>
+#include <stdexcept>
 #include "../util/cuda_helper_math.h"
 
 namespace HairEngine {
+
+	constexpr const int CUDA_HAIR_CONTACTS_IMPULSE_SOLVER_MAX_CONTACTS_LIMITATION = 15;
 
 	__global__
 	void HairContactsImpulseCudaSolver_updateContactsSpringKernal(const int *hashSegStarts, const int *hashSegEnds,
@@ -13,28 +16,37 @@ namespace HairEngine {
 	                                                        int numSegment, int numStrand, float lCreate, float lBreak,
 	                                                        int maxContacts, float k, float3 dInv,
 	                                                        int hashShift) {
+
 		// One for each segments
 		int idx = blockIdx.x * blockDim.x + threadIdx.x;
 		if (idx >= numSegment)
 			return;
+
 		int sid1 = sids[idx];
 		int sid1StrandIndex = segStrandIndices[sid1];
 
 		float3 center = midpoints[sid1];
 		float3 force = make_float3(0.0f);
 
+		// Allocate local memory for the contact ids
+		int segContacts[CUDA_HAIR_CONTACTS_IMPULSE_SOLVER_MAX_CONTACTS_LIMITATION];
+
+		int n = numContacts[sid1];
+		int *segContactsGlobal = contacts + sid1 * maxContacts;
+		for (int i = 0; i < n; ++i)
+			segContacts[i] = segContactsGlobal[i];
+
 		// Delete the old segments
-		int *contactsStarts = contacts + sid1 * maxContacts;
-		int n = 0; // An updated numContact
+		n = 0; // An updated numContact
 
 		for (int i = 0; i < numContacts[sid1]; ++i) {
-			int sid2 = contactsStarts[i];
+			int sid2 = segContacts[i];
 
 			float3 d = midpoints[sid2] - center;
 			float l = length(d) + 1e-30f;
 
 			if (l < lBreak) {
-				contactsStarts[n++] = contactsStarts[i];
+				segContacts[n++] = segContacts[i];
 				force += d * (1.0f - lCreate / l);
 			}
 		}
@@ -74,13 +86,13 @@ namespace HairEngine {
 						if (l < lCreate) {
 							// Check whether it is added
 							bool added = false;
-							for (int i = 0; i < n_; ++i) if (contactsStarts[i] == sid2) {
+							for (int i = 0; i < n_; ++i) if (segContacts[i] == sid2) {
 									added = true;
 									break;
 							}
 
 							if (!added) {
-								contactsStarts[n++] = sid2;
+								segContacts[n++] = sid2;
 								force += d * (1.0f - lCreate / l);
 								if (n == maxContacts)
 									goto ComputeForce;
@@ -105,7 +117,10 @@ namespace HairEngine {
 		atomicAdd(par2Impulse + 1, force.y);
 		atomicAdd(par2Impulse + 2, force.z);
 
+		// Write back
 		numContacts[sid1] = n;
+		for (int i = 0; i < n; ++i)
+			segContactsGlobal[i] = segContacts[i];
 	}
 
 	void HairContactsImpulseCudaSolver_updateContactsSpring(const int *hashSegStarts, const int *hashSegEnds,
@@ -115,6 +130,10 @@ namespace HairEngine {
 	                                                        int numSegment, int numStrand, float lCreate, float lBreak,
 	                                                        int maxContacts, float k, float3 dInv,
 	                                                        int hashShift, int wrapSize) {
+
+		if (maxContacts > CUDA_HAIR_CONTACTS_IMPULSE_SOLVER_MAX_CONTACTS_LIMITATION)
+			throw std::runtime_error("[HairContactsImpulseSolver:updateContactsSpring] Max hair contacts large than limitation");
+
 		int numThread = wrapSize * 32;
 		int numBlock = (numSegment + numThread - 1) / numThread;
 
