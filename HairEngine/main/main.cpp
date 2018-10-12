@@ -259,6 +259,7 @@ int main(int argc, char **argv) {
 			};
 			auto sdfCollisionSolver = integrator.addSolver<SDFCollisionSolver>(sdfCollisionConf, boneSkinningUpdater.get());
 			auto cudaMemoryInverseConverter = integrator.addSolver<CudaMemoryInverseConverter>(cudaMemoryConverter.get());
+//			integrator.addSolver<PositionCommiter>();
 		}
 		else {
 			integrator.addSolver<PositionCommiter>();

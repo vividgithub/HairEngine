@@ -38,12 +38,27 @@ namespace HairEngine {
 
 		void setup(const Hair &hair, const Eigen::Affine3f &currentTransform) override {
 
+			// Make sure that all the strands has the same number of particles
+			numParticleInStrand = hair.strands[0].particleInfo.nparticle;
+			for (int i = 1; i < hair.nstrand; ++i) {
+				if (hair.strands[i].particleInfo.nparticle != numParticleInStrand) {
+					throw std::runtime_error("[CudaMemoryConverter] Different number of particles in strand for hair");
+				}
+			}
+
+			numStrand = hair.nstrand;
+			numParticle = hair.nparticle;
+
 			parBufferHost = new float3[hair.nparticle];
 
 			if (options & RestPos_) {
 				parRestPoses = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
-				CudaUtility::copyFromHostToDevice(parRestPoses, hair.particles, hair.particles + hair.nparticle, parBufferHost,
-						[] (const Hair::Particle & par) -> float3 { return EigenUtility::toFloat3(par.restPos); });
+				copyParticlePropertyToDeviceMemory<float3>(
+						parRestPoses,
+						[] (Hair::Particle::Ptr par) -> float3 {
+							return EigenUtility::toFloat3(par->restPos);
+						}
+				);
 			}
 
 			if (options & Pos_)
@@ -57,42 +72,68 @@ namespace HairEngine {
 
 			if (options & LocalIndex_) {
 				parLocalIndices = CudaUtility::allocateCudaMemory<unsigned char>(hair.nparticle);
-				CudaUtility::copyFromHostToDevice(parLocalIndices, hair.particles, hair.particles + hair.nparticle, static_cast<unsigned char*>(nullptr),
-						[] (const Hair::Particle & par) -> unsigned char { return static_cast<unsigned char>(par.localIndex); });
+				copyParticlePropertyToDeviceMemory<unsigned char>(
+						parLocalIndices,
+						[] (Hair::Particle::Ptr par) -> unsigned char {
+							return static_cast<unsigned char>(par->localIndex);
+						}
+				);
 			}
 
 			if (options & GlobalIndex_) {
 				parGlobalIndices = CudaUtility::allocateCudaMemory<int>(hair.nparticle);
-				CudaUtility::copyFromHostToDevice(parGlobalIndices, hair.particles, hair.particles + hair.nparticle, static_cast<int*>(nullptr),
-					[] (const Hair::Particle & par) -> int { return par.globalIndex; });
+				copyParticlePropertyToDeviceMemory<int>(
+						parGlobalIndices,
+						[] (Hair::Particle::Ptr par) -> int {
+							return par->globalIndex;
+						}
+				);
 			}
 
 			if (options & StrandIndex_) {
 				parStrandIndices = CudaUtility::allocateCudaMemory<int>(hair.nparticle);
-				CudaUtility::copyFromHostToDevice(parStrandIndices, hair.particles, hair.particles + hair.nparticle, static_cast<int*>(nullptr),
-				                                  [] (const Hair::Particle & par) -> int { return par.strandIndex; });
+				copyParticlePropertyToDeviceMemory<int>(
+						parStrandIndices,
+						[] (Hair::Particle::Ptr par) -> int {
+							return par->strandIndex;
+						}
+				);
 			}
 		}
 
 		void tearDown() override {
+
 			CudaUtility::safeDeallocateCudaMemory(parPoses);
 			CudaUtility::safeDeallocateCudaMemory(parVels);
 			CudaUtility::safeDeallocateCudaMemory(parImpulses);
+
 			delete[] parBufferHost;
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 			if (parPoses)
-				CudaUtility::copyFromHostToDevice(parPoses, hair.particles, hair.particles + hair.nparticle, parBufferHost,
-						[] (const Hair::Particle & par) -> float3 { return EigenUtility::toFloat3(par.pos); });
+				copyParticlePropertyToDeviceMemory<float3>(
+						parPoses,
+						[] (Hair::Particle::Ptr par) -> float3 {
+							return EigenUtility::toFloat3(par->pos);
+						}
+				);
 
 			if (parVels)
-				CudaUtility::copyFromHostToDevice(parVels, hair.particles, hair.particles + hair.nparticle, parBufferHost,
-						[] (const Hair::Particle & par) -> float3 { return EigenUtility::toFloat3(par.vel); });
+				copyParticlePropertyToDeviceMemory<float3>(
+						parVels,
+						[] (Hair::Particle::Ptr par) -> float3 {
+							return EigenUtility::toFloat3(par->vel);
+						}
+				);
 
 			if (parImpulses)
-				CudaUtility::copyFromHostToDevice(parImpulses, hair.particles, hair.particles + hair.nparticle, parBufferHost,
-						[] (const Hair::Particle & par) -> float3 { return EigenUtility::toFloat3(par.impulse); });
+				copyParticlePropertyToDeviceMemory<float3>(
+						parImpulses,
+						[] (Hair::Particle::Ptr par) -> float3 {
+							return EigenUtility::toFloat3(par->impulse);
+						}
+				);
 		}
 
 	HairEngine_Public:
@@ -108,7 +149,11 @@ namespace HairEngine {
 		int *parGlobalIndices = nullptr; ///< The global index for the particles
 		int *parStrandIndices = nullptr; ///< The strand index for the particles
 
-		float3 *parBufferHost = nullptr; ///< The host buffer for copying
+		float3 *parBufferHost = nullptr; ///< The host buffer for copying (float3)
+
+		int numStrand = 0; ///< Number of strand in the hair
+		int numParticleInStrand = 0; ///< Number of particle in the hair
+		int numParticle = 0; ///< Number of particles
 
 		int getCopyOptions() const {
 			return options;
@@ -116,6 +161,17 @@ namespace HairEngine {
 
 	HairEngine_Protected:
 		int options; ///< Which data should be copied
+
+		template <typename T>
+		void copyParticlePropertyToDeviceMemory(T *devicePtr, std::function<T(Hair::Particle::Ptr)> func) {
+			T *hostPtr = reinterpret_cast<T*>(parBufferHost);
+
+			for (int li = 0; li < numParticleInStrand; ++li)
+				for (int si = 0; si < numStrand; ++si)
+					hostPtr[li * numStrand + si] = func(hair->strands[si].particleInfo.beginPtr + li);
+
+			CudaUtility::copyFromHostToDevice(devicePtr, hostPtr, numParticle);
+		}
 	};
 
 	/**
@@ -134,20 +190,29 @@ namespace HairEngine {
 
 			if (cmc->parPoses && (copyOptions & Pos_)) {
 				CudaUtility::copyFromDeviceToHost(cmc->parBufferHost, cmc->parPoses, hair.nparticle);
-				for (int i = 0; i < hair.nparticle; ++i)
-					hair.particles[i].pos = EigenUtility::fromFloat3(cmc->parBufferHost[i]);
+				for (int si = 0; si < cmc->numStrand; ++si)
+					for (int li = 0; li < cmc->numParticleInStrand; ++li) {
+						Eigen::Vector3f & val = hair.strands[si].particleInfo.beginPtr[li].pos;
+						val = EigenUtility::fromFloat3(cmc->parBufferHost[li * cmc->numStrand + si]);
+					}
 			}
 
 			if (cmc->parVels && (copyOptions & Vel_)) {
 				CudaUtility::copyFromDeviceToHost(cmc->parBufferHost, cmc->parVels, hair.nparticle);
-				for (int i = 0; i < hair.nparticle; ++i)
-					hair.particles[i].vel = EigenUtility::fromFloat3(cmc->parBufferHost[i]);
+				for (int si = 0; si < cmc->numStrand; ++si)
+					for (int li = 0; li < cmc->numParticleInStrand; ++li) {
+						Eigen::Vector3f & val = hair.strands[si].particleInfo.beginPtr[li].vel;
+						val = EigenUtility::fromFloat3(cmc->parBufferHost[li * cmc->numStrand + si]);
+					}
 			}
 
 			if (cmc->parImpulses && (copyOptions & Impulse_)) {
 				CudaUtility::copyFromDeviceToHost(cmc->parBufferHost, cmc->parImpulses, hair.nparticle);
-				for (int i = 0; i < hair.nparticle; ++i)
-					hair.particles[i].impulse = EigenUtility::fromFloat3(cmc->parBufferHost[i]);
+				for (int si = 0; si < cmc->numStrand; ++si)
+					for (int li = 0; li < cmc->numParticleInStrand; ++li) {
+						Eigen::Vector3f & val = hair.strands[si].particleInfo.beginPtr[li].impulse;
+						val = EigenUtility::fromFloat3(cmc->parBufferHost[li * cmc->numStrand + si]);
+					}
 			}
 		}
 

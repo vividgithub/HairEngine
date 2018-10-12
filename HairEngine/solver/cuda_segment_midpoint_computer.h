@@ -15,7 +15,7 @@
 namespace HairEngine {
 
 	void CudaSegmentMidpointComputer_cudaComputeMidpoint(const float3 *parPoses, const int *parStrandIndices,
-			float3 *midpoints, int *segStrandIndices, int numParticle, int wrapSize);
+			float3 *midpoints, int *segStrandIndices, int numParticle, int numStrand, int wrapSize);
 
 	/**
 	 * Compute the midpoint of the hair segments in cuda
@@ -37,7 +37,7 @@ namespace HairEngine {
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 			CudaSegmentMidpointComputer_cudaComputeMidpoint(cmc->parPoses, cmc->parStrandIndices,
-					midpoints, segStrandIndices, hair.nparticle, wrapSize);
+					midpoints, segStrandIndices, cmc->numParticle, cmc->numStrand, wrapSize);
 		}
 
 		void tearDown() override {

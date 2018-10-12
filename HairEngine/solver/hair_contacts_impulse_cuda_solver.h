@@ -24,7 +24,7 @@ namespace HairEngine {
 	                                                        const int *sids, const float3 *midpoints,
 	                                                        const int *segStrandIndices, int *contacts,
 	                                                        int *numContacts, float3 *parImpulses,
-	                                                        int numSegment, float lCreate, float lBreak,
+	                                                        int numSegment, int numStrand, float lCreate, float lBreak,
 	                                                        int maxContacts, float k, float3 dInv,
 	                                                        int hashShift, int wrapSize);
 
@@ -65,7 +65,7 @@ namespace HairEngine {
 			// Update the contacts springs
 			HairContactsImpulseCudaSolver_updateContactsSpring(psh->hashParStartsDevice, psh->hashParEndsDevice,
 					psh->pidsDevice, smc->midpoints, smc->segStrandIndices, contacts, numContacts, cmc->parImpulses,
-					hair.nsegment, lCreate, lBreak, maxContacts, k, psh->dInv, psh->numHashShift, wrapSize);
+					hair.nsegment, cmc->numStrand, lCreate, lBreak, maxContacts, k, psh->dInv, psh->numHashShift, wrapSize);
 
 			auto endTime = std::chrono::high_resolution_clock::now();
 

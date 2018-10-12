@@ -10,7 +10,7 @@ namespace HairEngine {
 	                                                        const int *sids, const float3 *midpoints,
 	                                                        const int *segStrandIndices, int *contacts,
 	                                                        int *numContacts, float3 *parImpulses,
-	                                                        int numSegment, float lCreate, float lBreak,
+	                                                        int numSegment, int numStrand, float lCreate, float lBreak,
 	                                                        int maxContacts, float k, float3 dInv,
 	                                                        int hashShift) {
 		// One for each segments
@@ -94,16 +94,16 @@ namespace HairEngine {
 		force *= k;
 
 		// Write the force to the segment and to the particle
-		int pid = sid1 + segStrandIndices[sid1];
-		float *parImpulses_ = reinterpret_cast<float*>(parImpulses + pid);
+		float *par1Impulse = reinterpret_cast<float*>(parImpulses + sid1);
+		float *par2Impulse = reinterpret_cast<float*>(parImpulses + sid1 + numStrand);
 
-		atomicAdd(parImpulses_, force.x);
-		atomicAdd(parImpulses_ + 1, force.y);
-		atomicAdd(parImpulses_ + 2, force.z);
+		atomicAdd(par1Impulse, force.x);
+		atomicAdd(par1Impulse + 1, force.y);
+		atomicAdd(par1Impulse + 2, force.z);
 
-		atomicAdd(parImpulses_ + 3, force.x);
-		atomicAdd(parImpulses_ + 4, force.y);
-		atomicAdd(parImpulses_ + 5, force.z);
+		atomicAdd(par2Impulse, force.x);
+		atomicAdd(par2Impulse + 1, force.y);
+		atomicAdd(par2Impulse + 2, force.z);
 
 		numContacts[sid1] = n;
 	}
@@ -112,14 +112,14 @@ namespace HairEngine {
 	                                                        const int *sids, const float3 *midpoints,
 	                                                        const int *segStrandIndices, int *contacts,
 	                                                        int *numContacts, float3 *parImpulses,
-	                                                        int numSegment, float lCreate, float lBreak,
+	                                                        int numSegment, int numStrand, float lCreate, float lBreak,
 	                                                        int maxContacts, float k, float3 dInv,
 	                                                        int hashShift, int wrapSize) {
 		int numThread = wrapSize * 32;
 		int numBlock = (numSegment + numThread - 1) / numThread;
 
 		HairContactsImpulseCudaSolver_updateContactsSpringKernal<<<numBlock, numThread>>>(hashSegStarts, hashSegEnds,
-				sids, midpoints, segStrandIndices, contacts, numContacts, parImpulses, numSegment, lCreate,
+				sids, midpoints, segStrandIndices, contacts, numContacts, parImpulses, numSegment, numStrand, lCreate,
 				lBreak, maxContacts, k, dInv, hashShift);
 		cudaDeviceSynchronize();
 	}
