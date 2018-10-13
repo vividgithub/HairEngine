@@ -52,20 +52,27 @@ namespace HairEngine {
 		}
 
 		// Search for new contacts
-		int3 index3Max, index3Min;
+		int3 index3Max, index3Min, index3Center;
 		int n_;
+		int3 offset;
 
 		if (n == maxContacts)
 			goto ComputeForce;
 
+
+		index3Center = make_int3(center * dInv);
 		index3Max = make_int3((center + lCreate) * dInv); // Ceiling
 		index3Min = make_int3((center - lCreate) * dInv); // Floor
+		offset = max(index3Max - index3Center, index3Center - index3Min);
 
 		n_ = n; // Store current n to n_, so the check iteration will only need to iterate to n_
 
-		for (int ix = index3Min.x; ix <= index3Max.x; ++ix)
-			for (int iy = index3Min.y; iy <= index3Max.y; ++iy)
-				for (int iz = index3Min.z; iz <= index3Max.z; ++iz) {
+		int ix, iy, iz, ox, oy, oz;
+		// The long expression here is trying to iterate ix from indexCenter.x --> indexCenter.x + 1 --->
+		// indexCenter.x - 1 --> ... until all the cells have been iterated
+		for (ox = 0, ix = index3Center.x; abs(ox) <= offset.x; ox = ox > 0 ? -ox : -ox + 1, ix = index3Center.x + ox) if (ix >= index3Min.x && ix <= index3Max.x)
+			for (oy = 0, iy = index3Center.y; abs(oy) <= offset.y; oy = oy > 0 ? -oy : -oy + 1, iy = index3Center.y + oy) if (iy >= index3Min.y && iy <= index3Max.y)
+				for (oz = 0, iz = index3Center.z; abs(oz) <= offset.z; oz = oz > 0 ? -oz : -oz + 1, iz = index3Center.z + oz) if (iz >= index3Min.z && iz <= index3Max.z) {
 					// Get the hash value
 					uint32_t hash = getHashValueFromIndex3(make_int3(ix, iy, iz), hashShift);
 					int hashStart = hashSegStarts[hash];
@@ -89,7 +96,7 @@ namespace HairEngine {
 							for (int i = 0; i < n_; ++i) if (segContacts[i] == sid2) {
 									added = true;
 									break;
-							}
+								}
 
 							if (!added) {
 								segContacts[n++] = sid2;
@@ -99,7 +106,7 @@ namespace HairEngine {
 							}
 						}
 					}
-				}
+				} // End ox, oy, oz
 
 		ComputeForce:
 
