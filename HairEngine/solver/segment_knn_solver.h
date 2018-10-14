@@ -29,7 +29,8 @@ namespace HairEngine {
 			std::cout << "[SegmentKNNSolver]: Find knn..." << std::endl;
 
 			// Copy the pos in Vector3f into the posBuffer
-			mapSegment(true, [this](Hair::Segment::Ptr seg) {
+			ParallismUtility::parallelFor(0, hair.nsegment, [this, &hair](int i) {
+				auto seg = hair.segments + i;
 				CompactNSearch::Real *posBufferStartPtr = seg->globalIndex * 3 + posBuffer;
 
 				// We don't assume that the Vector3f in Eigen is aligned and directly use the memcpy

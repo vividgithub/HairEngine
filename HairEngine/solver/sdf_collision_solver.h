@@ -691,7 +691,6 @@ namespace HairEngine {
 						);
 #endif
 					}
-
 		}
 
 	HairEngine_Protected:

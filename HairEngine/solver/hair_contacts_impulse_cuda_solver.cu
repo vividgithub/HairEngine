@@ -96,16 +96,16 @@ namespace HairEngine {
 							for (int i = 0; i < n_; ++i) if (segContacts[i] == sid2) {
 									added = true;
 									break;
-								}
+							}
 
 							if (!added) {
 								segContacts[n++] = sid2;
 								force += d * (1.0f - lCreate / l);
 								if (n == maxContacts)
 									goto ComputeForce;
-							}
-						}
-					}
+							} // End !added
+						} // End l < lCreate
+					} // End hash iteration
 				} // End ox, oy, oz
 
 		ComputeForce:

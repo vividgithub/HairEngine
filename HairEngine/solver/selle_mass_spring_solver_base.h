@@ -317,17 +317,25 @@ namespace HairEngine {
 						auto parEnd = parBegin + nparticleInStrand[si];
 
 						auto pi = parBegin;
+						Eigen::Vector3f piPrevPos = pos2[parBegin]; // The previous position before modification
+
 						for (int i = parBegin + 1; i != parEnd; ++i) {
 							float ltol = (p(i)->restPos - p(pi)->restPos).norm() * strainLimitingLengthTolerance;
 
-							Eigen::Vector3f d = pos2[i] - pos2[pi];
+							Eigen::Vector3f d = pos2[i] - piPrevPos;
 							float l = d.norm();
 							d /= l;
+
+							bool shouldModifyPi = isNormalParticle(i);
+
+							// Modify before the pos2 changes
+							if (shouldModifyPi)
+								piPrevPos = pos2[i];
 
 							if (l > ltol)
 								pos2[i] = pos2[pi] + d * ltol;
 
-							if (isNormalParticle(i))
+							if (shouldModifyPi)
 								pi = i;
 						}
 					});

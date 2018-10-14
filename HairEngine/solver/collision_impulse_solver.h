@@ -16,15 +16,16 @@ namespace HairEngine {
 
 		/**
 		 * Constructor
-		 * 
-		 * @param segmentKnnSolver The segment k-nearest solver 
+		 *
+		 * @param checkingDistance The distance to check whether it should be further tested by collision engine
 		 * @param kCollision The collision spring stiffness
 		 * @param maxCollisionPerSegment The max collision count for a edge (line segment)
 		 * @param maxCollisionForceCount In some situtaions, a sudden impulse force makes the system vibrated, 
 		 * we limit the maximum collision force by diving it if the total collision spring excceds this value
 		 */
-		CollisionImpulseSolver(SegmentKNNSolver *segmentKnnSolver, int maxCollisionPerSegment, float kCollision, int maxCollisionForceCount = 4):
-			segmentKnnSolver(segmentKnnSolver), 
+		CollisionImpulseSolver(float checkingDistance, int maxCollisionPerSegment, float kCollision, int maxCollisionForceCount = 4):
+			segmentKnnSolver(nullptr),
+			checkingDistance(checkingDistance),
 			kCollision(kCollision), 
 			maxCollisionPerSegment(maxCollisionPerSegment),
 			maxCollisionForceCount(maxCollisionForceCount) {}
@@ -36,9 +37,18 @@ namespace HairEngine {
 
 			for (int i = 0; i < ParallismUtility::getOpenMPMaxHardwareConcurrency(); ++i)
 				usedBuffers.emplace_back(hair.nsegment, -1);
+
+			segmentKnnSolver = new SegmentKNNSolver(checkingDistance);
+			segmentKnnSolver->setup(hair, currentTransform);
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
+
+			std::cout << "[CollisionImpulseSolver]: Building knn..." << std::endl;
+
+			segmentKnnSolver->solve(hair, info);
+
+			std::cout << "[CollisionImpulseSolver]: Get collisions..." << std::endl;
 
 			for (int i = 0; i < ParallismUtility::getOpenMPMaxHardwareConcurrency(); ++i) {
 				std::fill(usedBuffers[i].begin(), usedBuffers[i].end(), -1);
@@ -131,6 +141,8 @@ namespace HairEngine {
 
 		void tearDown() override {
 			HairEngine_AllocatorDeallocate(collisionInfos, hair->nsegment * maxCollisionPerSegment);
+			segmentKnnSolver->tearDown();
+			delete segmentKnnSolver;
 		}
 
 	HairEngine_Protected:
@@ -145,6 +157,7 @@ namespace HairEngine {
 				idx2(idx2), t1(t1), t2(t2), dn(dn), l0(l0) {}
 		};
 
+		float checkingDistance; ///< The distance to check whether it should be further test with collision engine
 		float kCollision; ///< The collision spring stiffness
 		int maxCollisionPerSegment; ///< The max collision count for an edge (line segment)
 

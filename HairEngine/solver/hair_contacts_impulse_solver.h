@@ -13,6 +13,7 @@
 
 #include "visualizer.h"
 #include "segment_knn_solver.h"
+#include "hair_contacts_and_collision_impulse_visualizer.h"
 
 namespace HairEngine {
 
@@ -20,6 +21,7 @@ namespace HairEngine {
 	 * The solver that resolve hair contacts by using impulse based spring forces 
 	 * in semi implicit euler. It will add the force to the "im" property of the particles.
 	 * The HairContactsImpulseSolver needs the SegmentKNNSolver for finding the k nearest neighbour 
+	 * The HairContactsImpulseSolver needs the SegmentKNNSolver for finding the k nearest neighbour
 	 * and add forces between them.
 	 */
 	class HairContactsImpulseSolver: public Solver {
@@ -29,16 +31,16 @@ namespace HairEngine {
 	HairEngine_Public:
 		/**
 		 * Constructor
-		 * 
-		 * @param segmentKnnSolver The SegmentKNNSolver used for neighbour search, added it before this solver to 
-		 * build the knn acceleration structure.
+		 *
 		 * @param creatingDistance The creating distance of contact spring 
 		 * @param breakingDistance The breaking distance of the contact spring
 		 * @param maxContactPerSegment The limitation of max contact per segment
-		 * @param kContactSpring The stiffness of the contact 
+		 * @param kContactSpring The stiffness of the contact
+		 * @param resolution Not use, just a placeholder to make it as the same argument template as the cuda solver
+		 * @param wrapSize Not use, placeholder
 		 */
-		HairContactsImpulseSolver(SegmentKNNSolver *segmentKnnSolver, float creatingDistance, float breakingDistance, int maxContactPerSegment, float kContactSpring): 
-			segmentKnnSolver(segmentKnnSolver), 
+		HairContactsImpulseSolver(float creatingDistance, float breakingDistance, int maxContactPerSegment, float kContactSpring, float resolution = 1.0, int wrapSize = 8):
+			segmentKnnSolver(nullptr),
 			kContactSpring(kContactSpring),
 			creatingDistance(creatingDistance),
 			breakingDistance(breakingDistance),
@@ -57,15 +59,25 @@ namespace HairEngine {
 
 			// Setup the ndirected and nundirected
 			ncontacts = std::vector<int>(hair.nsegment, 0);
+
+			segmentKnnSolver = new SegmentKNNSolver(creatingDistance);
+			segmentKnnSolver->setup(hair, currentTransform);
 		}
 
 		void tearDown() override {
 			HairEngine_AllocatorDeallocate(contactSprings, hair->nsegment * maxContactPerSegment);
+
+			segmentKnnSolver->tearDown();
+			delete segmentKnnSolver;
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
 
-			std::cout << "[HairContactsImpulseSolver]: Get impulse..." << std::endl;
+			std::cout << "[HairContactsImpulseSolver]: Build knn..." << std::endl;
+
+			segmentKnnSolver->solve(hair, info);
+
+			std::cout << "[HairContactsImpulseSolver]: Get impulses..." << std::endl;
 
 			ParallismUtility::parallelFor(0, ParallismUtility::getOpenMPMaxHardwareConcurrency(), [this] (int i){
 				std::fill(usedBuffers[i].begin(), usedBuffers[i].end(), -1);
@@ -153,4 +165,4 @@ namespace HairEngine {
 			return ret;
 		}
 	};
-}
+};

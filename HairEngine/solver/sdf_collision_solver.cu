@@ -185,117 +185,26 @@ void SDFCollisionSolver_cudaResolveCollisionKernal(float3 *parPoses, float3 *par
 
 	float3 vp = parVels[i];
 	float3 pos = parPoses[i]; // Estimated position
+	float3 estimatedPos = pos + time * vp;
 
 	float3 dInv { 1.0f / d.x, 1.0f / d.y, 1.0f / d.z };
-//	int3 maxcoor = n - 1;
-//
-//	if ((pos.x < origin.x) || (pos.y < origin.y) || (pos.z < origin.z))
-//		return;
-//
-//	float3 bboxMax = origin + d * make_float3(maxcoor);
-//	if ((pos.x > bboxMax.x) || (pos.y > bboxMax.y) || (pos.z > bboxMax.z))
-//		return;
-//
-//	float3 index3f = (pos - origin) * dInv;
-//	int3 index3 = min( make_int3(index3f), maxcoor);
-//
-//	int nyz = n.y * n.z;
-//
-//	int offsets[8];
-//	offsets[0] = index3.x * nyz + index3.y * (n.z) + index3.z;
-//	offsets[1] = offsets[0] + 1;
-//	offsets[2] = offsets[0] + n.z;
-//	offsets[3] = offsets[0] + n.z + 1;
-//	offsets[4] = offsets[0] + nyz;
-//	offsets[5] = offsets[4] + 1;
-//	offsets[6] = offsets[4] + n.z;
-//	offsets[7] = offsets[4] + n.z + 1;
-//
-//	float nodesSignedDist[8];
-//	int nodesPrimIdx[8];
-//	for (int i = 0; i < 8; ++i) {
-//		unsigned long long pack = grid[offsets[i]];
-//		uint32_t *packAddr = reinterpret_cast<uint32_t *>(&pack);
-//
-//		nodesSignedDist[i] = ifloatflip(packAddr[1]); // Most significant 32-bit
-//		nodesPrimIdx[i] = static_cast<int>(packAddr[0]); // Least significant 32-bit
-//	}
-//
-//	bool isAnyCellInvalid = false;
-//	bool isAllCellLargerThanContour = true;
-//
-//	for (int i = 0; i < 8; ++i) {
-//		isAnyCellInvalid |= (nodesPrimIdx[i] == 0xffffffff);
-//		isAllCellLargerThanContour &= nodesSignedDist[i] > contour;
-//	}
-//
-//	if (isAnyCellInvalid || isAllCellLargerThanContour)
-//		return;
-//
-//	float3 t = index3f - make_float3(index3);
-//	float chunkx[2] { 1 - t.x, t.x };
-//	float chunky[2] { 1 - t.y, t.y };
-//	float chunkz[2] { 1 - t.z, t.z };
-//
-//	float signedDist = 0.0f;
-//
-//	for (int i = 0; i < 8; ++i) {
-//		int boolx = i >> 2, booly = (i >> 1) & 1, boolz = i & 1;
-//		signedDist += nodesSignedDist[i] * (chunkx[boolx] * chunky[booly] * chunkz[boolz]);
-//	}
-//
-//	if (signedDist > contour)
-//		return;
-//
-//	float3 gradient = make_float3(0.0f);
-//	float3 v = make_float3(0.0f); // Object velocity
-//
-//	for (int i = 0; i < 8; ++i) {
-//		int boolx = i >> 2, booly = (i >> 1) & 1, boolz = i & 1;
-//		float cx = chunkx[boolx], cy = chunky[booly], cz = chunkz[boolz];
-//
-//		v += vels[nodesPrimIdx[i]] * (cx * cy * cz);
-//
-//		gradient += make_float3(boolx ? 1.0f : -1.0f, booly ? 1.0f : -1.0f, boolz ? 1.0f : -1.0f)
-//		            * make_float3(cy * cz, cx * cz, cx * cy)
-//		            * nodesSignedDist[i];
-//	}
-//
-//	// Normalize
-//	gradient *= dInv;
-//	gradient /= length(gradient);
-//
-//	float3 vpt, vpn, vt, vn;
-//	vpn = gradient * dot(vp, gradient);
-//	vpt = vp - vpn;
-//	vn = gradient * dot(v, gradient);
-//	vt = v - vn;
-//
-//	float3 vrelt = vpt - vt;
-//	vrelt *= fmaxf(0.0f, 1.0f - fraction * length(vpn - vn) / length(vrelt));
-//	//vrelt = { 0.0f, 0.0f, 0.0f };
-//
-//	vpt = vt + vrelt;
-//	vpn = vn;
-//
-//	vp = vpt + vpn;
-
-	// Write back
-	//parVels[i] = { 0.0f, 0.0f, 0.0f };
-	//parPoses[i] = pos + (contour - signedDist) * gradient;
 
 	float signedDist;
 	float3 gradient;
 	float3 v;
 
-	if (!SDFCollisionSolver_querySDF(pos + time * vp, grid, vels, origin, d, dInv, n, &signedDist, &gradient, &v))
+	if (!SDFCollisionSolver_querySDF(estimatedPos, grid, vels, origin, d, dInv, n, &signedDist, &gradient, &v))
 		unchanged = true;
+
+//	if (i == 5174) {
+//		printf("pos: {%f, %f, %f}, estimatedPos: {%f, %f, %f}, vel: {%f, %f, %f}, signedDist: %f, gradient: {%f, %f, %f}, v: {%f, %f, %f}, unchanged: %d\n", pos.x, pos.y, pos.z, estimatedPos.x, estimatedPos.y, estimatedPos.z, vp.x, vp.y, vp.z, signedDist, gradient.x, gradient.y, gradient.z, v.x, v.y, v.z, unchanged);
+//	}
 
 	if (signedDist > 0.0f)
 		unchanged = true;
 
 	if (unchanged) {
-		parPoses[i] = pos + time * vp;
+		parPoses[i] = estimatedPos;
 		parVels[i] = vp;
 		return;
 	}
@@ -315,8 +224,15 @@ void SDFCollisionSolver_cudaResolveCollisionKernal(float3 *parPoses, float3 *par
 //	vp = {0.0f, 0.0f, 0.0f};
 	pos += vp * time;
 
+//	if (i == 5174) {
+//		printf("After change, pos: {%f, %f, %f}, vel: {%f, %f, %f}\n", pos.x, pos.y, pos.z, vp.x, vp.y, vp.z);
+//	}
+
 	if (SDFCollisionSolver_querySDF(pos, grid, vels, origin, d, dInv, n, &signedDist, &gradient)) {
 		pos -= signedDist * gradient / length(gradient);
+//		if (i == 5174) {
+//			printf("After push: pos: {%f, %f, %f}, with origin signed dist: %f and gradient: {%f, %f, %f}\n", pos.x, pos.y, pos.z, signedDist, gradient.x, gradient.y, gradient.z);
+//		}
 	}
 
 	parPoses[i] = pos;

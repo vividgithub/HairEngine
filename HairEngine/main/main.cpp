@@ -33,8 +33,10 @@ VaryingFloat getVaryingFloat(const std::string & s) {
 
 	std::vector<float> xy;
 	while (is) {
-		xy.emplace_back();
-		is >> xy.back();
+		float number;
+		is >> number;
+		if (is)
+			xy.emplace_back(number);
 	}
 
 	HairEngine_DebugAssert(xy.size() % 2 == 0);
@@ -166,7 +168,8 @@ int main(int argc, char **argv) {
 
 		BoneSkinningAnimationData bkad(ini.Get("hair", "bkad_path"));
 
-		Eigen::Affine3f initialBoneTransform = bkad.getRestBoneTransform(0);
+		bool useStaticHairRoot = ini.GetBoolean("hair", "static_hair_root");
+		Eigen::Affine3f initialBoneTransform = useStaticHairRoot ? Eigen::Affine3f::Identity() : bkad.getRestBoneTransform(0);
 
 		// Generate an empty hair
 		int resampleRate = ini.GetBoolean("hair", "enable_resampling") ? ini.GetInteger("hair", "resample_rate") : 1;
@@ -189,41 +192,30 @@ int main(int argc, char **argv) {
 		HairContactsImpulseCudaSolver *hairContactsSolverPtr = nullptr;
 		CollisionImpulseSolver *hairCollisionSolverPtr = nullptr;
 
-		if (enableHairContacts || enableHairCollisions) {
-//			float knnRadius = 0.0f;
-//			if (enableHairContacts)
-//				knnRadius = std::max(knnRadius, ini.GetReal("haircontacts", "creating_distance"));
-//			if (enableHairCollisions)
-//				knnRadius = std::max(knnRadius, ini.GetReal("haircollisions", "check_distance"));
-//
-//			auto segmentKnnSolver = integrator.addSolver<SegmentKNNSolver>(knnRadius);
+		if (enableHairContacts) {
+			auto cmc = integrator.addSolver<CudaMemoryConverter>(Pos_ | Impulse_ | StrandIndex_);
+			auto smc = integrator.addSolver<CudaSegmentMidpointComputer>();
+			auto hairContactsSolver = integrator.addSolver<HairContactsImpulseCudaSolver>(
+					smc.get(),
+					ini.GetReal("haircontacts", "creating_distance"),
+					ini.GetReal("haircontacts", "breaking_distance"),
+					ini.GetInteger("haircontacts", "max_contacts"),
+					ini.GetReal("haircontacts", "stiffness"),
+					ini.GetReal("haircontacts", "resolution"),
+					ini.GetInteger("haircontacts", "cuda_wrap_size")
+			);
+			auto cmcInv = integrator.addSolver<CudaMemoryInverseConverter>(cmc.get(), Impulse_);
+			hairContactsSolverPtr = hairContactsSolver.get();
+		}
 
-			if (enableHairContacts) {
-				auto cmc = integrator.addSolver<CudaMemoryConverter>(Pos_ | Impulse_ | StrandIndex_);
-				auto smc = integrator.addSolver<CudaSegmentMidpointComputer>();
-				//auto impulseSolver = integrator.addSolver<HairContactsImpulseCudaSolver>(smc.get(), 0.001f, 0.002f, 10, 450.0f, 1, 16);
-				auto hairContactsSolver = integrator.addSolver<HairContactsImpulseCudaSolver>(
-						smc.get(),
-						ini.GetReal("haircontacts", "creating_distance"),
-						ini.GetReal("haircontacts", "breaking_distance"),
-						ini.GetInteger("haircontacts", "max_contacts"),
-						ini.GetReal("haircontacts", "stiffness")
-				);
-				auto cmcInv = integrator.addSolver<CudaMemoryInverseConverter>(cmc.get(), Impulse_);
-
-				hairContactsSolverPtr = hairContactsSolver.get();
-			}
-
-//			if (enableHairCollisions) {
-//				auto hairCollisionSolver = integrator.addSolver<CollisionImpulseSolver>(
-//						segmentKnnSolver.get(),
-//						ini.GetInteger("haircollisions", "max_collisions"),
-//						ini.GetReal("haircollisions", "stiffness"),
-//						ini.GetInteger("haircollisions", "max_collisions_force_count")
-//				);
-//
-//				hairCollisionSolverPtr = hairCollisionSolver.get();
-//			}
+		if (enableHairCollisions) {
+			auto hairCollisionSolver = integrator.addSolver<CollisionImpulseSolver>(
+					ini.GetReal("haircollisions", "checking_distance"),
+					ini.GetInteger("haircollisions", "max_collisions"),
+					ini.GetReal("haircollisions", "stiffness"),
+					ini.GetInteger("haircollisions", "max_collisions_force_count")
+			);
+			hairCollisionSolverPtr = hairCollisionSolver.get();
 		}
 
 		auto massSpringConf = SelleMassSpringSolverBase::Configuration(
@@ -233,7 +225,7 @@ int main(int argc, char **argv) {
 				ini.GetReal("massspring", "altitude_stiffness"),
 				ini.GetReal("massspring", "damping"),
 				getVaryingFloat(ini.Get("massspring", "rigidness")),
-				ini.GetReal("massspring", "strain_limiting_tolerance"),
+				ini.GetBoolean("massspring", "enable_strain_limiting") ? ini.GetReal("massspring", "strain_limiting_tolerance") : 0.0f,
 				ini.GetReal("massspring", "colinear_max_degree"),
 				ini.GetReal("massspring", "mass"),
 				1.0f / ini.GetReal("massspring", "max_integration_fps")
@@ -259,7 +251,8 @@ int main(int argc, char **argv) {
 			};
 			auto sdfCollisionSolver = integrator.addSolver<SDFCollisionSolver>(sdfCollisionConf, boneSkinningUpdater.get());
 			auto cudaMemoryInverseConverter = integrator.addSolver<CudaMemoryInverseConverter>(cudaMemoryConverter.get());
-//			integrator.addSolver<PositionCommiter>();
+
+			sdfCollisionSolverPtr = sdfCollisionSolver.get();
 		}
 		else {
 			integrator.addSolver<PositionCommiter>();
@@ -269,7 +262,7 @@ int main(int argc, char **argv) {
 			auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
 					ini.Get("visualize", "hair_folder"),
 					ini.Get("visualize", "hair_name_pattern"),
-					bkad.getFrameTimeInterval(),
+					0.0f,
 					nullptr
 			);
 		}
@@ -292,15 +285,15 @@ int main(int argc, char **argv) {
 			);
 		}
 
-//		if (ini.GetBoolean("visualize", "hair_collisions_enable")) {
-//			auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
-//					ini.Get("visualize", "hair_collisions_folder"),
-//					ini.Get("visualize", "hair_collisions_name_pattern"),
-//					bkad.getFrameTimeInterval(),
-//					nullptr,
-//					hairCollisionSolverPtr
-//			);
-//		}
+		if (ini.GetBoolean("visualize", "hair_collisions_enable")) {
+			auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
+					ini.Get("visualize", "hair_collisions_folder"),
+					ini.Get("visualize", "hair_collisions_name_pattern"),
+					bkad.getFrameTimeInterval(),
+					nullptr,
+					hairCollisionSolverPtr
+			);
+		}
 
 		if (ini.GetBoolean("visualize", "sdf_collisions_enable")) {
 			auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
@@ -320,7 +313,7 @@ int main(int argc, char **argv) {
 
 		for (int i = 1; i <= totalSimulationFrame; i += 1) {
 			cout << "Simulation Frame " << i << "..." << endl;
-			Eigen::Affine3f currentBoneTransform = bkad.getBoneTransform(0, i * simulationTime);
+			Eigen::Affine3f currentBoneTransform = useStaticHairRoot ? Eigen::Affine3f::Identity() : bkad.getBoneTransform(0, i * simulationTime);
 			integrator.simulate(simulationTime, currentBoneTransform);
 		}
 	} catch (const INIReaderParseError & e) {
