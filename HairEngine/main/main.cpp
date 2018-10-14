@@ -208,16 +208,6 @@ int main(int argc, char **argv) {
 			hairContactsSolverPtr = hairContactsSolver.get();
 		}
 
-		if (enableHairCollisions) {
-			auto hairCollisionSolver = integrator.addSolver<CollisionImpulseSolver>(
-					ini.GetReal("haircollisions", "checking_distance"),
-					ini.GetInteger("haircollisions", "max_collisions"),
-					ini.GetReal("haircollisions", "stiffness"),
-					ini.GetInteger("haircollisions", "max_collisions_force_count")
-			);
-			hairCollisionSolverPtr = hairCollisionSolver.get();
-		}
-
 		auto massSpringConf = SelleMassSpringSolverBase::Configuration(
 				ini.GetReal("massspring", "stretch_stiffness"),
 				ini.GetReal("massspring", "bending_stiffness"),
@@ -232,6 +222,16 @@ int main(int argc, char **argv) {
 		);
 
 		auto massSpringSolver = integrator.addSolver<SelleMassSpringImplcitHeptadiagnoalSolver>(massSpringConf);
+
+		if (enableHairCollisions) {
+			auto hairCollisionSolver = integrator.addSolver<CollisionImpulseSolver>(
+					ini.GetReal("haircollisions", "checking_distance"),
+					ini.GetInteger("haircollisions", "max_collisions"),
+					ini.GetReal("haircollisions", "stiffness"),
+					ini.GetInteger("haircollisions", "max_collisions_force_count")
+			);
+			hairCollisionSolverPtr = hairCollisionSolver.get();
+		}
 
 		auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
 

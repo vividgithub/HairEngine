@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <vector>
+#include <cstdio>
 
 #include "integration_info.h"
 #include "segment_knn_solver.h"
@@ -31,15 +32,11 @@ namespace HairEngine {
 			maxCollisionForceCount(maxCollisionForceCount) {}
 
 		void setup(const Hair& hair, const Eigen::Affine3f& currentTransform) override {
-			HairEngine_AllocatorAllocate(collisionInfos, hair.nsegment * maxCollisionPerSegment);
-			ncollision = std::vector<int>(hair.nsegment, 0);
-			forces = std::vector<ForceBuffer>(hair.nparticle);
-
-			for (int i = 0; i < ParallismUtility::getOpenMPMaxHardwareConcurrency(); ++i)
-				usedBuffers.emplace_back(hair.nsegment, -1);
-
 			segmentKnnSolver = new SegmentKNNSolver(checkingDistance);
 			segmentKnnSolver->setup(hair, currentTransform);
+
+			velocityImpulses.resize(hair.nparticle);
+			numVelocityImpulses.resize(hair.nparticle);
 		}
 
 		void solve(Hair& hair, const IntegrationInfo& info) override {
@@ -50,63 +47,38 @@ namespace HairEngine {
 
 			std::cout << "[CollisionImpulseSolver]: Get collisions..." << std::endl;
 
-			for (int i = 0; i < ParallismUtility::getOpenMPMaxHardwareConcurrency(); ++i) {
-				std::fill(usedBuffers[i].begin(), usedBuffers[i].end(), -1);
+			// Use iteration
+			for (int i = 0; i < 5; ++i) {
+				_solve(hair, info);
 			}
+		}
 
-			std::fill(forces.begin(), forces.end(), ForceBuffer());
+		void tearDown() override {
+			segmentKnnSolver->tearDown();
+			delete segmentKnnSolver;
+		}
 
-			ParallismUtility::parallelForWithThreadIndex(0, hair.nsegment, [this, &hair, &info] (int idx1, int threadId) {
+	HairEngine_Protected:
 
-				const auto range = getCollisionRange(idx1);
+		void _solve(Hair& hair, const IntegrationInfo& info) {
+
+//			std::fill(velocityImpulses.begin(), velocityImpulses.end(), Eigen::Vector3f::Zero());
+//			std::fill(numVelocityImpulses.begin(), numVelocityImpulses.end(), 0);
+
+			for (int idx1 = 0; idx1 < hair.nsegment; ++idx1) {
+
 				auto seg1 = hair.segments + idx1;
-				auto &usedBuffer = usedBuffers[threadId];
 
-				// Remove invalid collision springs
-				const auto & removePredicate = [this, &hair, &info, seg1](const CollisionInfo & _) -> bool {
-					const auto seg2 = hair.segments + _.idx2;
-
-					const Eigen::Vector3f predictedD = this->predicitedD(seg1, seg2, _.t1, _.t2, info.t);
-
-					// The collision will be removed if it is in the predicted direction is in the same direction and larger than rest length
-					return predictedD.dot(_.dn) >= 0.0f;
-				};
-
-				const auto removeEnd = std::remove_if(range.first, range.second, removePredicate);
-
-				// Update the ncollision
-				ncollision[idx1] = static_cast<int>(removeEnd - range.first);
-
-				// Compute the collision force
-				for (int i = 0; i < ncollision[idx1]; ++i) {
-
-					usedBuffer[i] = idx1;
-
-					const auto _ = range.first + i;
-					auto seg2 = hair.segments + _->idx2;
-
-					Eigen::Vector3f force = MathUtility::massSpringForce(seg1->lerpPos(_->t1), seg2->lerpPos(_->t2), kCollision, _->l0);
-
-					syncLock.lock();
-					forces[seg1->p1->globalIndex] += force;
-					forces[seg1->p2->globalIndex] += force;
-					forces[seg2->p1->globalIndex] -= force;
-					forces[seg2->p2->globalIndex] -= force;
-					syncLock.unlock();
-				}
-
-				// Add other collision springs
-				const int nneeds = std::min(segmentKnnSolver->getNNeighbourForSegment(idx1), maxCollisionPerSegment - ncollision[idx1]);
-				for (int i = 0; i < nneeds; ++i) {
+				const int numNeighbor = std::max(maxCollisionPerSegment, segmentKnnSolver->getNNeighbourForSegment(idx1));
+				for (int i = 0; i < numNeighbor; ++i) {
 					const int idx2 = segmentKnnSolver->getNeighbourIndexForSegment(idx1, i);
+					auto seg2 = hair.segments + idx2;
 
-					if (idx2 <= idx1 || usedBuffer[idx2] == idx1)
+					if (idx2 <= idx1)
 						continue;
 
-					const auto seg2 = hair.segments + idx2;
+					std::pair<float, float> ts = MathUtility::linetoLineDistanceClosestPointApproach(seg1->p1->pos, seg1->p2->pos, seg2->p1->pos, seg2->p2->pos);
 
-					std::pair<float, float> ts;
-					MathUtility::lineSegmentSquaredDistance(seg1->p1->pos, seg1->p2->pos, seg2->p1->pos, seg2->p2->pos, ts.first, ts.second);
 					if (ts.first > 0.0f && ts.first < 1.0 && ts.second > 0.0f && ts.second < 1.0f) {
 
 						Eigen::Vector3f dn = d(seg1, seg2, ts.first, ts.second);
@@ -114,48 +86,56 @@ namespace HairEngine {
 						const float l0 = dn.norm();
 						dn /= l0;
 
-						Eigen::Vector3f s2nv = MathUtility::lerp(seg2->p1->vel, seg2->p2->vel, ts.second);
-						s2nv = MathUtility::project(s2nv, dn);
-						Eigen::Vector3f s1nv = MathUtility::lerp(seg1->p1->vel, seg1->p2->vel, ts.first);
-						s1nv = MathUtility::project(s1nv, dn);
+//						auto s1v1 = getVelocity(seg1->p1->globalIndex);
+//						auto s1v2 = getVelocity(seg1->p2->globalIndex);
+//						auto s2v1 = getVelocity(seg2->p1->globalIndex);
+//						auto s2v2 = getVelocity(seg2->p2->globalIndex);
+						auto &s1v1 = seg1->p1->vel;
+						auto &s1v2 = seg1->p2->vel;
+						auto &s2v1 = seg2->p1->vel;
+						auto &s2v2 = seg2->p2->vel;
+
+						Eigen::Vector3f s2v = MathUtility::lerp(seg2->p1->vel, seg2->p2->vel, ts.second);
+						Eigen::Vector3f s2nv = MathUtility::project(s2v, dn);
+
+						Eigen::Vector3f s1v = MathUtility::lerp(seg1->p1->vel, seg1->p2->vel, ts.first);
+						Eigen::Vector3f s1nv = MathUtility::project(s1v, dn);
 
 						Eigen::Vector3f dnv = s2nv - s1nv;
+
+//						printf("Before, dn: {%f, %f, %f}, l0: %f\n", dn.x(), dn.y(), dn.z(), l0);
+//						printf("Before, seg1(%d) --> v1: {%f, %f, %f}, v2: {%f, %f, %f}, pv: {%f, %f, %f}, nv: {%f, %f, %f}\n", idx1, s1v1.x(), s1v1.y(), s1v1.z(), s1v2.x(), s1v2.y(), s1v2.z(), s1v.x(), s1v.y(), s1v.z(), s1nv.x(), s1nv.y(), s1nv.z());
+//						printf("Before, seg2(%d) --> v1: {%f, %f, %f}, v2: {%f, %f, %f}, pv: {%f, %f, %f}, nv: {%f, %f, %f}\n", idx2, s2v1.x(), s2v1.y(), s2v1.z(), s2v2.x(), s2v2.y(), s2v2.z(), s2v.x(), s2v.y(), s2v.z(), s2nv.x(), s2nv.y(), s2nv.z());
 
 						// If it not seems to collide in current simulation frame, just continue
 						if (dnv.dot(dn) >= 0.0f || dnv.norm() * info.t < l0)
 							continue;
 
-						//Collision happen and added
-						std::allocator<CollisionInfo>().construct(range.first + (ncollision[idx1]++), idx2, ts.first, ts.second, dn, l0);
+						// If true collide, compute the impulse force, we assume
+						Eigen::Vector3f v = (s2v + s1v) / 2.0f;
+
+//						printf("v: {%f, %f, %f}\n", v.x(), v.y(), v.z());
+
+						Eigen::Vector3f dv = v - s1v;
+
+//						addVelociyImpulse(seg1->p1->globalIndex, dv);
+//						addVelociyImpulse(seg1->p2->globalIndex, dv);
+//						addVelociyImpulse(seg2->p1->globalIndex, -dv);
+//						addVelociyImpulse(seg2->p2->globalIndex, -dv);
+
+						s1v1 += dv;
+						s1v2 += dv;
+						s2v1 -= dv;
+						s2v2 -= dv;
+
+//						printf("After, seg1 --> v1: {%f, %f, %f}, v2: {%f, %f, %f}\n", s1v1.x(), s1v1.y(), s1v1.z(), s1v2.x(), s1v2.y(), s1v2.z());
+//						printf("After, seg2 --> v1: {%f, %f, %f}, v2: {%f, %f, %f}\n", s2v1.x(), s2v1.y(), s2v1.z(), s2v2.x(), s2v2.y(), s2v2.z());
 					}
 				}
-			});
-
-			// Commit the force to particles
-			mapParticle(true, [this] (Hair::Particle::Ptr par) {
-				const auto & f = forces[par->globalIndex];
-				const float scale = (f.count > maxCollisionForceCount) ? static_cast<float>(maxCollisionForceCount) / f.count : 1.0f;
-				par->impulse += f.force * scale;
-			});
-		}
-
-		void tearDown() override {
-			HairEngine_AllocatorDeallocate(collisionInfos, hair->nsegment * maxCollisionPerSegment);
-			segmentKnnSolver->tearDown();
-			delete segmentKnnSolver;
+			}
 		}
 
 	HairEngine_Protected:
-
-		struct CollisionInfo {
-			int idx2; ///< Another collision segment index
-			float t1, t2; ///< The CPA (cloest point approach) of the two line segments
-			Eigen::Vector3f dn; ///< The normalized direction for detecting the collision
-			float l0; ///< The rest length of the collision setup
-
-			CollisionInfo(int idx2, float t1, float t2, const Eigen::Vector3f & dn, float l0):
-				idx2(idx2), t1(t1), t2(t2), dn(dn), l0(l0) {}
-		};
 
 		float checkingDistance; ///< The distance to check whether it should be further test with collision engine
 		float kCollision; ///< The collision spring stiffness
@@ -163,54 +143,15 @@ namespace HairEngine {
 
 		/// Too many collision force will makes the system vibrated, we limit the total force for a segment 
 		/// by diving it if it the total force count larger than the "maxCollisionForceCount"
-		int maxCollisionForceCount; 
-
-		struct ForceBuffer {
-			int count;
-			Eigen::Vector3f force;
-
-			ForceBuffer(): count(0), force(Eigen::Vector3f::Zero()) {}
-
-			ForceBuffer &operator+=(const Eigen::Vector3f & f) {
-				++count;
-				force += f;
-				return *this;
-			}
-
-			ForceBuffer &operator-=(const Eigen::Vector3f & f) {
-				++count;
-				force -= f;
-				return *this;
-			}
-		};
-
-		std::vector<ForceBuffer> forces;
+		int maxCollisionForceCount;
 
 		/// A pre-allocated space for storing all the collision information, since we 
 		/// limit the size of max collision / segment, all the collision info for segment i is stored in the 
 		/// [ collisionInfos[i * maxCollisionPerSegment], collisionInfos[(i + 1) * maxCollisionPerSegment ).
 		SegmentKNNSolver *segmentKnnSolver;
-		CollisionInfo *collisionInfos = nullptr;
-		std::vector<int> ncollision; ///< Number of collision for segment i
 
-		std::vector<std::vector<int>> usedBuffers; ///< The buffer to check whether the collision springs have been inserted
-
-		//FIXME
-		CompactNSearch::Spinlock syncLock; ///< Use to protect the modification of particle impulse
-
-		/**
-		 * Helper function, get the valid collision information array range for segment i
-		 * 
-		 * @param segmentIndex The segment index
-		 * @return A pointer range specifying the range [start, end) for the valid collision information array for segment i
-		 */
-		std::pair<CollisionInfo *, CollisionInfo *> getCollisionRange(int segmentIndex) const {
-			std::pair<CollisionInfo *, CollisionInfo *> ret;
-			ret.first = collisionInfos + segmentIndex * maxCollisionPerSegment;
-			ret.second = ret.first + ncollision[segmentIndex];
-
-			return ret;
-		}
+		std::vector<Eigen::Vector3f> velocityImpulses;
+		std::vector<int> numVelocityImpulses;
 
 		Eigen::Vector3f d(Hair::Segment::Ptr seg1, Hair::Segment::Ptr seg2, float t1, float t2) {
 			return seg2->lerpPos(t2) - seg1->lerpPos(t1);
@@ -222,6 +163,16 @@ namespace HairEngine {
 
 		Eigen::Vector3f predicitedD(Hair::Segment::Ptr seg1, Hair::Segment::Ptr seg2, float t1, float t2, float time) {
 			return d(seg1, seg2, t1, t2)  + time * dv(seg1, seg2, t1, t2);
+		}
+
+		Eigen::Vector3f getVelocity(int i) const {
+			float scale = (numVelocityImpulses[i] > maxCollisionForceCount) ? static_cast<float>(maxCollisionForceCount) / numVelocityImpulses[i] : 1.0f;
+			return hair->particles[i].vel + scale * velocityImpulses[i];
+		}
+
+		void addVelociyImpulse(int i, const Eigen::Vector3f & dv) {
+			++numVelocityImpulses[i];
+			velocityImpulses[i] += dv;
 		}
 	};
 }

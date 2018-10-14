@@ -8,6 +8,7 @@
 #ifdef HAIRENGINE_ENABLE_CUDA
 
 #include <cuda_runtime.h>
+#include <HairEngine/HairEngine/geo/hair.h>
 #include "../solver/solver.h"
 #include "../util/cudautil.h"
 #include "../util/eigenutil.h"
@@ -42,7 +43,9 @@ namespace HairEngine {
 			numParticleInStrand = hair.strands[0].particleInfo.nparticle;
 			for (int i = 1; i < hair.nstrand; ++i) {
 				if (hair.strands[i].particleInfo.nparticle != numParticleInStrand) {
-					throw std::runtime_error("[CudaMemoryConverter] Different number of particles in strand for hair");
+					std::ostringstream os;
+					os << "[CudaMemoryConverter] Different number of particles in strand for hair with i = 0 has " << numParticleInStrand << " while i = " << i << " has " << hair.strands[i].particleInfo.nparticle << " particles";
+					throw std::runtime_error(os.str());
 				}
 			}
 
