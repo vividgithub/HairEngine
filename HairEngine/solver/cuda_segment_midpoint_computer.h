@@ -33,6 +33,7 @@ namespace HairEngine {
 
 			midpoints = CudaUtility::allocateCudaMemory<float3>(hair.nsegment);
 			segStrandIndices = CudaUtility::allocateCudaMemory<int>(hair.nsegment);
+//			lengths = CudaUtility::allocateCudaMemory<float>(hair.nsegment);
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
@@ -41,8 +42,9 @@ namespace HairEngine {
 		}
 
 		void tearDown() override {
-			cudaFree(midpoints);
+			CudaUtility::deallocateCudaMemory(midpoints);
 			cudaFree(segStrandIndices);
+//			CudaUtility::deallocateCudaMemory(lengths);
 		}
 
 		int wrapSize; ///< The cuda wrap size for each thread block
@@ -51,6 +53,9 @@ namespace HairEngine {
 		/// For the segment that connects the particle i and i + 1 (global index),
 		/// the mid point position is stored in midpoints[i - strandIndex[i]]
 		float3 *midpoints = nullptr;
+
+		/// The lengths for the segments, same alignment as the midpoints
+//		float *lengths = nullptr;
 
 		/// The segment strand indices, we can query the global index for the first connected by i + segStrandIndices[i]
 		int *segStrandIndices = nullptr;

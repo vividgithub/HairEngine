@@ -17,6 +17,7 @@
 #include "../solver/selle_mass_spring_visualizer.h"
 #include "../solver/hair_contacts_and_collision_impulse_visualizer.h"
 #include "../solver/hair_contacts_impulse_cuda_solver.h"
+#include "../solver/collision_impulse_cuda_solver.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -47,111 +48,7 @@ VaryingFloat getVaryingFloat(const std::string & s) {
 	return VaryingFloat(xBegin, xEnd, xEnd);
 }
 
-//void validHairContactsCudaSolver() {
-//	const auto hair = make_shared<Hair>("/Users/vivi/Developer/Project/HairEngine/Houdini/Resources/Models/Feamle 04 Retop/Hair/Straight-50000-p25.hair");
-//
-//	Integrator integrator(hair, Eigen::Affine3f::Identity());
-//
-//	// Copy the particles
-//
-//	auto cmc = integrator.addSolver<CudaMemoryConverter>(Pos_ | Impulse_ | StrandIndex_);
-//	auto smc = integrator.addSolver<CudaSegmentMidpointComputer>();
-//	auto impulseSolver = integrator.addSolver<HairContactsImpulseCudaSolver>(smc.get(), 0.001f, 0.002f, 10, 450.0f, 1, 16);
-//
-//	// Only simulate one frame
-//	integrator.simulate(1.0f / 120.0f, Eigen::Affine3f::Identity());
-//
-//	// Copy the contacts and numContacts back
-//	int *contactsCheck = new int[hair->nsegment * impulseSolver->maxContacts];
-//	int *numContactsCheck = new int[hair->nsegment];
-//
-//	CudaUtility::copyFromDeviceToHost(contactsCheck, impulseSolver->contacts, hair->nsegment * impulseSolver->maxContacts);
-//	CudaUtility::copyFromDeviceToHost(numContactsCheck, impulseSolver->numContacts, hair->nsegment);
-//
-//	int totalContacts = 0;
-//	for (int sid1 = 0; sid1 < hair->nsegment; ++sid1) {
-//
-//		if (!(numContactsCheck[sid1] >= 0 && numContactsCheck[sid1] <= impulseSolver->maxContacts)) {
-//			printf("Invalid numContacts in sid: %d, with numContacts: %d\n", sid1, numContactsCheck[sid1]);
-//			return;
-//		}
-//
-//		for (int i = 0; i < numContactsCheck[sid1]; ++i) {
-//			int sid2 = contactsCheck[sid1 * impulseSolver->maxContacts + i];
-//			float l = (hair->segments[sid1].midpoint() - hair->segments[sid2].midpoint()).norm();
-//			if (l >= impulseSolver->lCreate) {
-//				printf("Invalid segment contacts sid1: %d, sid2: %d, with l: %f,while lCreate: %f\n", sid1, sid2, l, impulseSolver->lCreate);
-//				return;
-//			}
-//		}
-//
-//		totalContacts += numContactsCheck[sid1];
-//	}
-//
-//	printf("Toatal contacts: %d, average contacts: %f\n", totalContacts, static_cast<float>(totalContacts) / hair->nsegment);
-//
-//	auto psh = impulseSolver->psh;
-//	int *hashParStarts = new int[psh->numHash];
-//	int *hashParEnds = new int[psh->numHash];
-//	int *pids = new int[psh->numHash];
-//
-//	CudaUtility::copyFromDeviceToHost(hashParStarts, psh->hashParStartsDevice, psh->numHash);
-//	CudaUtility::copyFromDeviceToHost(hashParEnds, psh->hashParEndsDevice, psh->numHash);
-//	CudaUtility::copyFromDeviceToHost(pids, psh->pidsDevice, psh->numParticle);
-//
-//	int emptyHash = 0;
-//	int totalCell = 0;
-//	std::vector<int> particlePerHashDist(35, 0);
-//	std::vector<int> cellPerHashDist(35, 0);
-//
-//	const auto & comp = [](const int3 & i1, const int3 & i2) -> bool {
-//		return (i1.x < i2.x) || (i1.x == i2.x && i1.y < i2.y) || (i1.x == i2.x && i1.y == i2.y && i1.z < i2.z);
-//	};
-//
-//	for (int i = 0; i < psh->numHash; ++i) {
-//		if (hashParStarts[i] == 0xffffffff) {
-//			++emptyHash;
-//			continue;
-//		}
-//
-//		std::set<int3, decltype(comp)> cells(comp);
-//		for (int t = hashParStarts[i]; t != hashParEnds[i]; ++t) {
-//			int sid = pids[t];
-//			Eigen::Vector3f midpoint = hair->segments[sid].midpoint();
-//			float3 midpoint_ { midpoint.x(), midpoint.y(), midpoint.z() };
-//			int3 index3 = make_int3(midpoint_ * psh->dInv);
-//			cells.insert(index3);
-//		}
-//
-//		int numCellInHash = cells.size();
-//		int numParticleInHash = hashParEnds[i] - hashParStarts[i];
-//
-//		totalCell += numCellInHash;
-//		++particlePerHashDist[std::min(numParticleInHash, 34)];
-//		++cellPerHashDist[std::min(numCellInHash, 34)];
-//	}
-//
-//	printf("Total hash: %d, empty: %d, value: %d\n", psh->numHash, emptyHash, psh->numHash - emptyHash);
-//	printf("Total segments: %d, total cells: %d\n", psh->numParticle, totalCell);
-//	printf("Particel per hash distribution: \n");
-//	for (int i = 0; i < 35; ++i) {
-//		printf("%d:%d ", i, particlePerHashDist[i]);
-//		if (i % 7 == 0)
-//			printf("\n");
-//	}
-//	printf("\n");
-//	printf("Cell per hash distribution: \n");
-//	for (int i = 0; i < 35; ++i) {
-//		printf("%d:%d ", i, cellPerHashDist[i]);
-//		if (i % 7 == 0)
-//			printf("\n");
-//	}
-//}
-
 int main(int argc, char **argv) {
-
-	//validHairContactsCudaSolver();
-
 	try {
 		cxxopts::Options cmdOptions("HairEngine[cmd]", "HairEngine command line tool");
 
@@ -176,6 +73,8 @@ int main(int argc, char **argv) {
 		const auto hair = make_shared<Hair>(Hair(ini.Get("hair", "path"),
 		                                         initialBoneTransform.inverse(Eigen::Affine)).resample(resampleRate));
 
+		float visualizeTime = ini.GetBoolean("visualize", "timming_override") ? 0.0f : bkad.getFrameTimeInterval();
+
 		cout << "Creating integrator..." << endl;
 		Integrator integrator(hair, initialBoneTransform);
 
@@ -186,36 +85,53 @@ int main(int argc, char **argv) {
 		);
 		auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, gravity);
 
-		auto enableHairContacts = ini.GetBoolean("haircontacts", "enable");
-		auto enableHairCollisions = ini.GetBoolean("haircollisions", "enable");
-
 		HairContactsImpulseCudaSolver *hairContactsSolverPtr = nullptr;
-		CollisionImpulseSolver *hairCollisionSolverPtr = nullptr;
+		CollisionImpulseCudaSolver *collisionImpulseSolverPtr = nullptr;
 
-		if (enableHairContacts) {
-			auto cmc = integrator.addSolver<CudaMemoryConverter>(Pos_ | Impulse_ | StrandIndex_);
-			auto smc = integrator.addSolver<CudaSegmentMidpointComputer>();
-			auto hairContactsSolver = integrator.addSolver<HairContactsImpulseCudaSolver>(
-					smc.get(),
-					ini.GetReal("haircontacts", "creating_distance"),
-					ini.GetReal("haircontacts", "breaking_distance"),
-					ini.GetInteger("haircontacts", "max_contacts"),
-					ini.GetReal("haircontacts", "stiffness"),
-					ini.GetReal("haircontacts", "resolution"),
-					ini.GetInteger("haircontacts", "cuda_wrap_size")
-			);
-			auto cmcInv = integrator.addSolver<CudaMemoryInverseConverter>(cmc.get(), Impulse_);
-			hairContactsSolverPtr = hairContactsSolver.get();
-		}
+		// Add hair contacts and collisions solver
+		{
+			auto enableHairContacts = ini.GetBoolean("haircontacts", "enable");
+			auto enableHairCollisions = ini.GetBoolean("haircollisions", "enable");
 
-		if (enableHairCollisions) {
-			auto hairCollisionSolver = integrator.addSolver<CollisionImpulseSolver>(
-					ini.GetReal("haircollisions", "checking_distance"),
-					ini.GetInteger("haircollisions", "max_collisions"),
-					ini.GetReal("haircollisions", "stiffness"),
-					ini.GetInteger("haircollisions", "max_collisions_force_count")
-			);
-			hairCollisionSolverPtr = hairCollisionSolver.get();
+			CudaSegmentMidpointComputer *smcPtr = nullptr;
+			CudaMemoryConverter *cmcPtr = nullptr;
+
+			// Add additional solver for hair contacts and impulse collision
+			if (enableHairContacts || enableHairCollisions) {
+				int copyOptions = 0;
+				if (enableHairContacts)
+					copyOptions |= Pos_ | Impulse_ | StrandIndex_;
+				if (enableHairCollisions)
+					copyOptions |= Pos_ | Vel_ | Impulse_ | StrandIndex_;
+
+				cmcPtr = integrator.addSolver<CudaMemoryConverter>(copyOptions).get();
+
+				smcPtr = integrator.addSolver<CudaSegmentMidpointComputer>().get();
+			}
+
+			if (enableHairContacts)
+				hairContactsSolverPtr = integrator.addSolver<HairContactsImpulseCudaSolver>(
+						smcPtr,
+						ini.GetReal("haircontacts", "creating_distance"),
+						ini.GetReal("haircontacts", "breaking_distance"),
+						ini.GetInteger("haircontacts", "max_contacts"),
+						ini.GetReal("haircontacts", "stiffness"),
+						ini.GetReal("haircontacts", "resolution"),
+						ini.GetInteger("haircontacts", "cuda_wrap_size")
+				).get();
+
+			if (enableHairCollisions)
+				collisionImpulseSolverPtr = integrator.addSolver<CollisionImpulseCudaSolver>(
+						smcPtr,
+						ini.GetInteger("haircollisions", "max_collisions"),
+						ini.GetInteger("haircollisions", "max_collisions_force_count"),
+						ini.GetReal("haircollisions", "stiffness"),
+						ini.GetReal("haircollisions", "resolution"),
+						ini.GetInteger("haircollisions", "cuda_wrap_size")
+				).get();
+
+			if (enableHairContacts || enableHairCollisions)
+				integrator.addSolver<CudaMemoryInverseConverter>(cmcPtr, Impulse_);
 		}
 
 		auto massSpringConf = SelleMassSpringSolverBase::Configuration(
@@ -262,7 +178,7 @@ int main(int argc, char **argv) {
 			auto hairVplyVisualizer = integrator.addSolver<HairVisualizer>(
 					ini.Get("visualize", "hair_folder"),
 					ini.Get("visualize", "hair_name_pattern"),
-					0.0f,
+					visualizeTime,
 					nullptr
 			);
 		}
@@ -271,7 +187,7 @@ int main(int argc, char **argv) {
 			auto springVplyVisualizer = integrator.addSolver<SelleMassSpringVisualizer>(
 					ini.Get("visualize", "spring_folder"),
 					ini.Get("visualize", "spring_name_pattern"),
-					bkad.getFrameTimeInterval(),
+					visualizeTime,
 					massSpringSolver.get()
 			);
 		}
@@ -280,18 +196,17 @@ int main(int argc, char **argv) {
 			auto hairContactsVisualizer = integrator.addSolver<HairContactsImpulseCudaVisualizer>(
 					ini.Get("visualize", "hair_contacts_folder"),
 					ini.Get("visualize", "hair_contacts_name_pattern"),
-					bkad.getFrameTimeInterval(),
+					visualizeTime,
 					hairContactsSolverPtr
 			);
 		}
 
 		if (ini.GetBoolean("visualize", "hair_collisions_enable")) {
-			auto hairContactsVisualizer = integrator.addSolver<HairContactsAndCollisionImpulseSolverVisualizer>(
+			auto hairContactsVisualizer = integrator.addSolver<CollisionImpulseCudaVisualizer>(
 					ini.Get("visualize", "hair_collisions_folder"),
 					ini.Get("visualize", "hair_collisions_name_pattern"),
-					bkad.getFrameTimeInterval(),
-					nullptr,
-					hairCollisionSolverPtr
+					visualizeTime,
+					collisionImpulseSolverPtr
 			);
 		}
 
@@ -299,7 +214,7 @@ int main(int argc, char **argv) {
 			auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
 					ini.Get("visualize", "sdf_collisions_folder"),
 					ini.Get("visualize", "sdf_collisions_name_pattern"),
-					bkad.getFrameTimeInterval(),
+					visualizeTime,
 					sdfCollisionSolverPtr
 			);
 		}

@@ -57,7 +57,7 @@ void SDFCollisionSolver_cudaComputeSDFGridKernal(const float3 *poses,
 	bboxMax = fmaxf(bboxMax, p[2]);
 
 	int3 minIndex = max(make_int3((bboxMin - origin) * dInv) - margin3, make_int3(0));
-	int3 maxIndex = min(make_int3((bboxMax - origin) * dInv) + margin3 + make_int3(1), n);
+	int3 maxIndex = min(make_int3((bboxMax - origin) * dInv) + margin3 + make_int3(1), n - 1);
 
 	for (int ix = minIndex.x; ix <= maxIndex.x; ++ix)
 		for (int iy = minIndex.y; iy <= maxIndex.y; ++iy)

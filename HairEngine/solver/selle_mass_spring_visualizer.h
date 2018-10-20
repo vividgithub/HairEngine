@@ -18,6 +18,10 @@ namespace HairEngine {
 			Visualizer(directory, filenameTemplate, timestep), selleMassSpringSolver(selleMassSpringSolver) {}
 
 		void visualize(std::ostream& os, Hair& hair, const IntegrationInfo& info) override {
+
+			if (!selleMassSpringSolver)
+				return;
+
 			// Show the springs
 			const auto _ = selleMassSpringSolver;
 			for (auto sp = _->springs; sp != _->springs + _->nspring; ++sp) {

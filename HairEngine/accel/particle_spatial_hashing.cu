@@ -1,5 +1,6 @@
 
 #include "../util/cuda_helper_math.h"
+#include <cstdio>
 
 namespace HairEngine {
 

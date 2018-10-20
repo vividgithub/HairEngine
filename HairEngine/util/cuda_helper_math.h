@@ -1516,4 +1516,9 @@ uint32_t getHashValueFromIndex3(int3 index3, int shift) {
 	return (73856093u * (uint32_t)index3.x + 19349663u * (uint32_t)index3.y + 83492791u * (uint32_t)index3.z) & ((1 << shift) - 1);
 }
 
+inline __device__ __host__
+float3 project(float3 v, float3 dir) {
+	return dot(v, dir) * dir;
+}
+
 #endif

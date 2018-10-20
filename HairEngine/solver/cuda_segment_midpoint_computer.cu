@@ -6,13 +6,18 @@
 namespace HairEngine {
 	__global__
 	void CudaSegmentMidpointComputer_cudaComputeMidpointKernal(const float3 *parPoses, const int *parStrandIndices,
-	                                                           float3 *midpoints, int *segStrandIndices, int numParticle, int numStrand) {
+	                                                           float3 *midpoints, int *segStrandIndices,
+	                                                           int numParticle, int numStrand) {
 		// Compute the midpoints, one for each segment
 		int i = blockIdx.x * blockDim.x + threadIdx.x;
 		if (i + numStrand >= numParticle)
 			return;
 
-		midpoints[i] = 0.5f * (parPoses[i] + parPoses[i + numStrand]);
+		float3 p1 = parPoses[i];
+		float3 p2 = parPoses[i + numStrand];
+
+		midpoints[i] = 0.5f * (p1 + p2);
+//		lengths[i] = length(p2 - p1);
 		segStrandIndices[i] = parStrandIndices[i]; // Bypass the particle strand indices to segment
 	}
 

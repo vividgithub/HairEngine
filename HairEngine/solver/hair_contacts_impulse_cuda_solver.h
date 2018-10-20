@@ -2,9 +2,9 @@
 // Created by vivi on 2018/10/7.
 //
 
-#ifdef HAIRENGINE_ENABLE_CUDA
-
 #pragma once
+
+#ifdef HAIRENGINE_ENABLE_CUDA
 
 #include <VPly/vply.h>
 
@@ -32,7 +32,7 @@ namespace HairEngine {
 	HairEngine_Public:
 		HairContactsImpulseCudaSolver(CudaSegmentMidpointComputer *smc, float creatingDistance,
 				float breakingDistance, int maxContactPerSegment, float kContactSpring, float resolution = 1.0, int wrapSize = 8):
-				CudaBasedSolver(Impulse_),
+				CudaBasedSolver(Pos_ | Impulse_),
 				smc(smc),
 				lCreate(creatingDistance),
 				lBreak(breakingDistance),
@@ -70,12 +70,14 @@ namespace HairEngine {
 			auto endTime = std::chrono::high_resolution_clock::now();
 
 			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-			printf("Timming: %lldms\n", diff.count());
+			printf("[HairContactsImpulseCudaSolver] Timming: %lldms\n", diff.count());
 		}
 
 		void tearDown() override {
 			cudaFree(contacts);
 			cudaFree(numContacts);
+
+			delete psh;
 		}
 
 	//HairEngine_Protected:
@@ -109,6 +111,10 @@ namespace HairEngine {
 		                                  impulseCudaSolver(impulseCudaSolver) {}
 
 		void setup(const Hair &hair, const Eigen::Affine3f &currentTransform) override {
+
+			if (!impulseCudaSolver)
+				return;
+
 			// Allocate the space for contacts and numContacts
 			contacts = new int[hair.nsegment * impulseCudaSolver->maxContacts];
 			numContacts = new int[hair.nsegment];
@@ -122,6 +128,11 @@ namespace HairEngine {
 		}
 
 		void visualize(std::ostream &os, Hair &hair, const IntegrationInfo &info) override {
+
+			if (!impulseCudaSolver)
+				return;
+
+
 			// Copy the contacts and numContacts
 			CudaUtility::copyFromDeviceToHost(contacts, impulseCudaSolver->contacts, hair.nsegment * impulseCudaSolver->maxContacts);
 			CudaUtility::copyFromDeviceToHost(numContacts, impulseCudaSolver->numContacts, hair.nsegment);

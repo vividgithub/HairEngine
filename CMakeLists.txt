@@ -41,6 +41,7 @@ set(
     "${HAIRENGINE_SOURCE_DIR}/accel/particle_spatial_hashing.cu"
     "${HAIRENGINE_SOURCE_DIR}/solver/cuda_segment_midpoint_computer.cu"
     "${HAIRENGINE_SOURCE_DIR}/solver/hair_contacts_impulse_cuda_solver.cu"
+    "${HAIRENGINE_SOURCE_DIR}/solver/collision_impulse_cuda_solver.cu"
 	)
 
 # All the include directories

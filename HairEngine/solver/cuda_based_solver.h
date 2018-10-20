@@ -58,7 +58,7 @@ namespace HairEngine {
 
 				// Compose the string
 				std::string exceptionMessage = "[CudaBasedSolver] Some memory has not been correctly copied to device memory: ";
-				exceptionMessage += copyOptionsToString.at(noCopyOptions[0]);
+				exceptionMessage += copyOptionsToString.at(1 << noCopyOptions[0]);
 				for (int i = 1; i < noCopyOptions.size(); ++i)
 					exceptionMessage += ", " + copyOptionsToString.at(noCopyOptions[i]);
 
