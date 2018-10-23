@@ -45,6 +45,22 @@ namespace HairEngine {
 			});
 		}
 
+		VaryingFloat(const VaryingFloat & rhs):
+			points(rhs.points) {}
+
+		VaryingFloat(VaryingFloat && rhs):
+			points(std::move(rhs.points)) {}
+
+		VaryingFloat &operator=(const VaryingFloat & rhs) {
+			points = rhs.points;
+			return *this;
+		}
+
+		VaryingFloat &operator=(VaryingFloat && rhs) {
+			points = std::move(rhs.points);
+			return *this;
+		}
+
 		/**
 		 * Get the interpolated value in the position x
 		 * @param x The x position.

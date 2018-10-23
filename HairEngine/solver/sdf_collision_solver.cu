@@ -6,7 +6,6 @@
 #include <device_functions.h>
 #include "../util/cuda_helper_math.h"
 
-
 __global__
 void SDFCollisionSolver_cudaComputeVelocitiesKernal(const float3 *prePoses,
                                                     const float3 *poses, const int3 *indices, float3 *outVel, float tInv, int nprim) {
