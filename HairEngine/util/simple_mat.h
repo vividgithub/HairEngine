@@ -7,6 +7,7 @@
 #include "cuda_helper_math.h"
 #include <cuda_runtime.h>
 #include <algorithm>
+#include <sstream>
 
 namespace HairEngine {
 
@@ -117,6 +118,14 @@ namespace HairEngine {
 			return ret;
 		}
 
+		std::string description() const {
+			std::ostringstream os;
+			os << "{{" << at<0, 0>() << ',' << at<0, 1>() << ',' << at<0, 2>() << "},"
+			   << '{' << at<1, 0>() << ',' << at<1, 1>() << ',' << at<1, 2>() << "},"
+			   << '{' << at<2, 0>() << ',' << at<2, 1>() << ',' << at<2, 2>() << "}}";
+			return os.str();
+		}
+
 		__device__ __host__ __forceinline__
 		constexpr static Mat3 Zero() {
 			return { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
@@ -170,6 +179,4 @@ namespace HairEngine {
 			a.at<2, 0>() * b.x + a.at<2, 1>() * b.y + a.at<2, 2>() * b.z
 		};
 	}
-
-
 }
