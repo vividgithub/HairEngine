@@ -45,9 +45,14 @@ namespace HairEngine {
 		 * @block The block function which accepts an index for parallel executing
 		 */
 		static inline void parallelFor(int start, int end, const std::function<void(int)> & block) {
+#ifdef NDEBUG
 			#pragma omp parallel for
 			for (int i = start; i < end; ++i)
 				block(i);
+#else
+			for (int i = start; i < end; ++i)
+				block(i);
+#endif
 		}
 
 		/**
@@ -55,8 +60,12 @@ namespace HairEngine {
 		 * return 1.
 		 */
 		static inline unsigned getOpenMPMaxHardwareConcurrency() {
+#ifdef NDEBUG
 			const auto maxThreadNumber = std::thread::hardware_concurrency();
 			return maxThreadNumber > 0 ? maxThreadNumber : 1;
+#elif
+			return 1;
+#endif
 		}
 
 		/**
@@ -67,6 +76,7 @@ namespace HairEngine {
 		 * @param block The executing block function which accepts a loop index i and an threadID, which indicating the thread number
 		 */
 		static inline void parallelForWithThreadIndex(int start, int end, const std::function<void(int, int)> & block) {
+#ifdef NDEBUG
 			static unsigned maxThreadNumber = 0;
 
 			// Only executing once
@@ -81,6 +91,10 @@ namespace HairEngine {
 				for (int i = start; i < end; ++i)
 					block(i, threadID);
 			}
+#else
+			for (int i = start; i < end; ++i)
+				block(i, 0);
+#endif
 		}
 
 		/**
