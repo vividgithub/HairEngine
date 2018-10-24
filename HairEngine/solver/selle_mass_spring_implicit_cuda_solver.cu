@@ -26,7 +26,6 @@ namespace HairEngine {
 	void SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal(
 			Mat3 *L0, Mat3 *L1, Mat3 *L2, Mat3 *L3,
 			Mat3 *U0, Mat3 *U1, Mat3 *U2,
-			float3 *b,
 			float3 *poses,
 			float3 *prevPoses,
 			float3 *restPoses,
@@ -53,6 +52,7 @@ namespace HairEngine {
 
 		// Alias
 		const auto & n = numParticlePerStrand;
+		auto & b = vels;
 
 		// Initialize the b and A
 		float3 p[4]; // Previous poses, store in register
@@ -191,7 +191,6 @@ namespace HairEngine {
 			i2 = i1 + numStrand;
 			i3 = i2 + numStrand;
 
-			vels[i] = b[i];
 			if (li + 1 < n)
 				vels[i] -= U0[i] * vels[i1];
 			if (li + 2 < n)
@@ -309,7 +308,7 @@ namespace HairEngine {
 		SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal<<<numBlock, numThread>>>(
 				L[0], L[1], L[2], L[3],
 				U[0], U[1], U[2],
-				b, poses, prevPoses, restPoses, vels, impulses,
+				poses, prevPoses, restPoses, vels, impulses,
 				rigidness, dTransform, dTranslation, numParticle, numStrand, numParticlePerStrand,
 				pmass, damping, kStretch, kBending, kTorsion, strainLimitingTolerance, t
 		);
