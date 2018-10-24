@@ -26,7 +26,6 @@ namespace HairEngine {
 	void SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal(
 			Mat3 *L0, Mat3 *L1, Mat3 *L2, Mat3 *L3,
 			Mat3 *U0, Mat3 *U1, Mat3 *U2,
-			float3 *y,
 			float3 *b,
 			float3 *poses,
 			float3 *prevPoses,
@@ -63,8 +62,9 @@ namespace HairEngine {
 		Mat3 dm;
 		for (int i = si, li = 0; i < numParticle; i += numStrand, ++li) {
 
-			L0[i] = Mat3::Diagnoal(pmass + damping * t);
-			L3[i] = L2[i] = L1[i] = U0[i] = U1[i] = U2[i] = Mat3::Zero();
+			L0[i].asDiagonal(pmass + damping * t);
+			L3[i].asZero(); L2[i].asZero(); L1[i].asZero();
+			U0[i].asZero(); U1[i].asZero(); U2[i].asZero();
 
 			b[i] = pmass * vels[i] + impulses[i] * t;
 
@@ -126,12 +126,12 @@ namespace HairEngine {
 
 		// Initialize b and A of the strand root
 		b[si] = (dTransform * prevPoses[si] + dTranslation - prevPoses[si]) / t;
-		L3[si] = L2[si] = L1[si] = U0[si] = U1[si] = U2[si] = Mat3::Zero();
-		L0[si] = Mat3::Identity();
+		L3[si].asZero(); L2[si].asZero(); L1[si].asZero();
+		U0[si].asZero(); U1[si].asZero(); U2[si].asZero();
+		L0[si].asIdentity();
 
 		// Heptadignoal solver
 		int i1, i2, i3;
-
 		for (int i = si, li = 0; i < numParticle; i += numStrand, ++li) {
 
 			i1 = i - numStrand;
@@ -175,14 +175,13 @@ namespace HairEngine {
 			U0[i] = dm * U0[i];
 
 			//compute y
-			y[i] = b[i];
 			if (li >= 1)
-				y[i] -= L1[i] * y[i1];
+				b[i] -= L1[i] * b[i1];
 			if (li >= 2)
-				y[i] -= L2[i] * y[i2];
+				b[i] -= L2[i] * b[i2];
 			if (li >= 3)
-				y[i] -= L3[i] * y[i3];
-			y[i] = dm * y[i];
+				b[i] -= L3[i] * b[i3];
+			b[i] = dm * b[i];
 		}
 
 		// Compute the final velocity and poses
@@ -192,7 +191,7 @@ namespace HairEngine {
 			i2 = i1 + numStrand;
 			i3 = i2 + numStrand;
 
-			vels[i] = y[i];
+			vels[i] = b[i];
 			if (li + 1 < n)
 				vels[i] -= U0[i] * vels[i1];
 			if (li + 2 < n)
@@ -310,7 +309,7 @@ namespace HairEngine {
 		SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal<<<numBlock, numThread>>>(
 				L[0], L[1], L[2], L[3],
 				U[0], U[1], U[2],
-				y, b, poses, prevPoses, restPoses, vels, impulses,
+				b, poses, prevPoses, restPoses, vels, impulses,
 				rigidness, dTransform, dTranslation, numParticle, numStrand, numParticlePerStrand,
 				pmass, damping, kStretch, kBending, kTorsion, strainLimitingTolerance, t
 		);

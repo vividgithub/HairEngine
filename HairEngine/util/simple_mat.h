@@ -129,13 +129,37 @@ namespace HairEngine {
 		}
 
 		__device__ __host__ __forceinline__
+		Mat3 & asZero() {
+			_val[0] = 0.0f; _val[1] = 0.0f; _val[2] = 0.0f;
+			_val[3] = 0.0f; _val[4] = 0.0f; _val[5] = 0.0f;
+			_val[6] = 0.0f; _val[7] = 0.0f; _val[8] = 0.0f;
+			return *this;
+		}
+
+		__device__ __host__ __forceinline__
 		constexpr static Mat3 Identity() {
 			return { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 		}
 
 		__device__ __host__ __forceinline__
-		static Mat3 Diagnoal(float val) {
+		Mat3 & asIdentity() {
+			_val[0] = 1.0f; _val[1] = 0.0f; _val[2] = 0.0f;
+			_val[3] = 0.0f; _val[4] = 1.0f; _val[5] = 0.0f;
+			_val[6] = 0.0f; _val[7] = 0.0f; _val[8] = 1.0f;
+			return *this;
+		}
+
+		__device__ __host__ __forceinline__
+		static Mat3 Diagonal(float val) {
 			return { val, 0.0f, 0.0f, 0.0f, val, 0.0f, 0.0f, 0.0f, val };
+		}
+
+		__device__ __host__ __forceinline__
+		Mat3 & asDiagonal(float val) {
+			_val[0] = val; _val[1] = 0.0f; _val[2] = 0.0f;
+			_val[3] = 0.0f; _val[4] = val; _val[5] = 0.0f;
+			_val[6] = 0.0f; _val[7] = 0.0f; _val[8] = val;
+			return *this;
 		}
 
 		__device__ __host__ __forceinline__
@@ -148,6 +172,18 @@ namespace HairEngine {
 			float zz = d.z * d.z;
 
 			return { xx, xy, xz, xy, yy, yz, xz, yz, zz };
+		}
+
+		__device__ __host__ __forceinline__
+		Mat3 & asDirectionMatrix(float3 d) {
+			at<0, 0>() = d.x * d.x;
+			at<0, 1>() = at<1, 0>() = d.x * d.y;
+			at<0, 2>() = at<2, 0>() = d.x * d.z;
+			at<1, 1>() = d.y * d.y;
+			at<1, 2>() = at<2, 1>() = d.y * d.z;
+			at<2, 2>() = d.z * d.z;
+
+			return *this;
 		}
 	};
 
