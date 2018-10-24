@@ -24,7 +24,7 @@ namespace HairEngine {
 
 	__global__
 	void SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal(
-			Mat3 *L0, Mat3 *L1, Mat3 *L2, Mat3 *L3, Mat3 *L4,
+			Mat3 *L0, Mat3 *L1, Mat3 *L2, Mat3 *L3,
 			Mat3 *U0, Mat3 *U1, Mat3 *U2,
 			float3 *y,
 			float3 *b,
@@ -156,23 +156,23 @@ namespace HairEngine {
 			if (li >= 3)
 				L0[i] -= L3[i] * U2[i3];
 
-			//compute L0i
-			L4[i] = L0[i].inverse();
+			//compute L0 inverse
+			dm = L0[i].inverse();
 
 			//compute U2
-			U2[i] = L4[i] * U2[i];
+			U2[i] = dm * U2[i];
 
 			//compute U1
 			if (li >= 1)
 				U1[i] -= L1[i] * U2[i1];
-			U1[i] = L4[i] * U1[i];
+			U1[i] = dm * U1[i];
 
 			//compute U0
 			if (li >= 1)
 				U0[i] -= L1[i] * U1[i1];
 			if (li >= 2)
 				U0[i] -= L2[i] * U2[i2];
-			U0[i] = L4[i] * U0[i];
+			U0[i] = dm * U0[i];
 
 			//compute y
 			y[i] = b[i];
@@ -182,7 +182,7 @@ namespace HairEngine {
 				y[i] -= L2[i] * y[i2];
 			if (li >= 3)
 				y[i] -= L3[i] * y[i3];
-			y[i] = L4[i] * y[i];
+			y[i] = dm * y[i];
 		}
 
 		// Compute the final velocity and poses
@@ -308,7 +308,7 @@ namespace HairEngine {
 		int numBlock = (numStrand + numThread - 1) / numThread;
 
 		SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal<<<numBlock, numThread>>>(
-				L[0], L[1], L[2], L[3], L[4],
+				L[0], L[1], L[2], L[3],
 				U[0], U[1], U[2],
 				y, b, poses, prevPoses, restPoses, vels, impulses,
 				rigidness, dTransform, dTranslation, numParticle, numStrand, numParticlePerStrand,
