@@ -7,7 +7,7 @@
 #include "cuda_helper_math.h"
 #include <cuda_runtime.h>
 #include <algorithm>
-#include <sstream>
+#include <cstdio>
 
 namespace HairEngine {
 
@@ -92,7 +92,7 @@ namespace HairEngine {
 			return *this;
 		}
 
-
+		__device__ __host__ __forceinline__
 		Mat3 inverse() const {
 			const auto & a = _val;
 
@@ -118,12 +118,9 @@ namespace HairEngine {
 			return ret;
 		}
 
-		std::string description() const {
-			std::ostringstream os;
-			os << "{{" << at<0, 0>() << ',' << at<0, 1>() << ',' << at<0, 2>() << "},"
-			   << '{' << at<1, 0>() << ',' << at<1, 1>() << ',' << at<1, 2>() << "},"
-			   << '{' << at<2, 0>() << ',' << at<2, 1>() << ',' << at<2, 2>() << "}}";
-			return os.str();
+		__device__ __host__ __forceinline__
+		void print() const {
+			printf("{{%f, %f, %f}, {%f, %f, %f}, {%f, %f, %f}}", _val[0], _val[1], _val[2], _val[3], _val[4], _val[5], _val[6], _val[7], _val[8]);
 		}
 
 		__device__ __host__ __forceinline__

@@ -63,7 +63,7 @@ namespace HairEngine {
 #ifdef NDEBUG
 			const auto maxThreadNumber = std::thread::hardware_concurrency();
 			return maxThreadNumber > 0 ? maxThreadNumber : 1;
-#elif
+#else
 			return 1;
 #endif
 		}

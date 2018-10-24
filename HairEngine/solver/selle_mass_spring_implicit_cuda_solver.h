@@ -68,6 +68,13 @@ namespace HairEngine {
 			for (int i = 0; i < 3; ++i)
 				U[i] = CudaUtility::allocateCudaMemory<Mat3>(hair.nparticle);
 
+			A_ = CudaUtility::allocateCudaMemory<Mat3 *>(7);
+			L_ = CudaUtility::allocateCudaMemory<Mat3 *>(5);
+			U_ = CudaUtility::allocateCudaMemory<Mat3 *>(3);
+			CudaUtility::copyFromHostToDevice(A_, (Mat3**)A, 7);
+			CudaUtility::copyFromHostToDevice(L_, (Mat3**)L, 5);
+			CudaUtility::copyFromHostToDevice(U_, (Mat3**)U, 3);
+
 			b = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
 			y = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
 
@@ -97,6 +104,7 @@ namespace HairEngine {
 				}
 			}
 
+			rigidness = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
 			CudaUtility::copyFromHostToDevice(rigidness, rigidnessHost, hair.nparticle);
 			delete [] rigidnessHost;
 
@@ -118,11 +126,16 @@ namespace HairEngine {
 				CudaUtility::deallocateCudaMemory(L[i]);
 			for (int i = 0; i < 3; ++i)
 				CudaUtility::deallocateCudaMemory(U[i]);
+
+			CudaUtility::deallocateCudaMemory(A_);
+			CudaUtility::deallocateCudaMemory(L_);
+			CudaUtility::deallocateCudaMemory(U_);
 			CudaUtility::deallocateCudaMemory(b);
 			CudaUtility::deallocateCudaMemory(y);
 
 			CudaUtility::deallocateCudaMemory(prevPoses);
 			CudaUtility::deallocateCudaMemory(poses);
+			CudaUtility::deallocateCudaMemory(rigidness);
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
@@ -136,6 +149,8 @@ namespace HairEngine {
 				timeIntervals.push_back(1.0f);
 
 			auto splittedInfos = info.lerp(timeIntervals.cbegin(), timeIntervals.cend());
+
+			auto startTime = std::chrono::high_resolution_clock::now();
 
 			for (int i = 0; i < splittedInfos.size(); ++i) {
 				const auto & splittedInfo = splittedInfos[i];
@@ -157,7 +172,7 @@ namespace HairEngine {
 
 				// Use (i == 0) ? cmc->parPoses : prevPoses to avoid an extra copy
 				SelleMassSpringImplicitCudaSolver_resolveStrandDynamics(
-						(Mat3**)A, (Mat3**)L, (Mat3**)U, y, b, poses, (i == 0) ? cmc->parPoses : prevPoses, cmc->parRestPoses,
+						A_, L_, U_, y, b, poses, (i == 0) ? cmc->parPoses : prevPoses, cmc->parRestPoses,
 						cmc->parVels, cmc->parImpulses, rigidness, dTransform, dTranslation, hair.nparticle,
 						hair.nstrand, cmc->numParticleInStrand, conf.mass, conf.damping, conf.stretchStiffness,
 						conf.bendingStiffness, conf.torsionStiffness, conf.strainLimitingLengthTolerance, splittedInfo.t,
@@ -168,6 +183,10 @@ namespace HairEngine {
 				std::swap(poses, prevPoses);
 			}
 
+			auto endTime = std::chrono::high_resolution_clock::now();
+			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+			printf("[SelleMassSpringImplicitCudaSolver] Timming %lldms\n", diff.count());
+
 			// Compute the velocity, now the final pos result is stored in "prevPoses" (after swapping) and the
 			// old result before iteration is stored in "cmc->parPoses".
  			SelleMassSpringImplicitCudaSolver_getVelocityFromPosition(
@@ -177,12 +196,19 @@ namespace HairEngine {
 			// Particle not commit, so we don't need to apply an update to cmc->parPoses
 		}
 
+		float getParticleMass() const { return conf.mass; }
+
 	HairEngine_Protected:
 		Configuration conf;
 
 		Mat3 *A[7];
 		Mat3 *L[5];
 		Mat3 *U[3];
+
+		// In device memory
+		Mat3 **A_;
+		Mat3 **L_;
+		Mat3 **U_;
 
 		float3 *b;
 		float3 *y;

@@ -42,6 +42,7 @@ set(
     "${HAIRENGINE_SOURCE_DIR}/solver/cuda_segment_midpoint_computer.cu"
     "${HAIRENGINE_SOURCE_DIR}/solver/hair_contacts_impulse_cuda_solver.cu"
     "${HAIRENGINE_SOURCE_DIR}/solver/collision_impulse_cuda_solver.cu"
+    "${HAIRENGINE_SOURCE_DIR}/solver/selle_mass_spring_implicit_cuda_solver.cu"
 	)
 
 # All the include directories

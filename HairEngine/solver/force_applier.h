@@ -66,16 +66,16 @@ namespace HairEngine {
 		 * 
 		 * @param massPtr The mass pointer that points to the paticle mass
 		 */
-		void setMass(const float *massPtr) {
-			this->massPtr = massPtr;
+		void setMass(float mass) {
+			this->mass = mass;
 		}
 
 		Eigen::Vector3f getForce(Hair& hair, Hair::Particle::Ptr par) const override {
-			return acceleartion * (*massPtr);
+			return acceleartion * mass;
 		}
 
 	HairEngine_Protected:
 		Eigen::Vector3f acceleartion; ///< The accleration speed
-		const float *massPtr = nullptr; ///< The pointer to the particle mass so that we can get the force 
+		float mass; ///< The pointer to the particle mass so that we can get the force
 	};
 }
