@@ -24,9 +24,9 @@ namespace HairEngine {
 
 	__global__
 	void SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal(
-			Mat3 **A,
-			Mat3 **L,
-			Mat3 **U,
+			Mat3 *A0, Mat3 *A1, Mat3 *A2, Mat3 *A3, Mat3 *A4, Mat3 *A5, Mat3 *A6,
+			Mat3 *L0, Mat3 *L1, Mat3 *L2, Mat3 *L3, Mat3 *L4,
+			Mat3 *U0, Mat3 *U1, Mat3 *U2,
 			float3 *y,
 			float3 *b,
 			float3 *poses,
@@ -64,8 +64,8 @@ namespace HairEngine {
 		Mat3 dm;
 		for (int i = si, li = 0; i < numParticle; i += numStrand, ++li) {
 
-			A[3][i] = Mat3::Diagnoal(pmass + damping * t);
-			A[0][i] = A[1][i] = A[2][i] = A[4][i] = A[5][i] = A[6][i] = Mat3::Zero();
+			A3[i] = Mat3::Diagnoal(pmass + damping * t);
+			A0[i] = A1[i] = A2[i] = A4[i] = A5[i] = A6[i] = Mat3::Zero();
 
 			b[i] = pmass * vels[i] + impulses[i] * t;
 
@@ -81,10 +81,10 @@ namespace HairEngine {
 				b[pi] += impulse;
 				b[i] -= impulse;
 
-				A[3][pi] += dm;
-				A[3][i] += dm;
-				A[4][pi] -= dm;
-				A[2][i] -= dm;
+				A3[pi] += dm;
+				A3[i] += dm;
+				A4[pi] -= dm;
+				A2[i] -= dm;
 			}
 
 //			if (si == 0) {
@@ -101,10 +101,10 @@ namespace HairEngine {
 				b[pi] += impulse;
 				b[i] -= impulse;
 
-				A[3][pi] += dm;
-				A[3][i] += dm;
-				A[5][pi] -= dm;
-				A[1][i] -= dm;
+				A3[pi] += dm;
+				A3[i] += dm;
+				A5[pi] -= dm;
+				A1[i] -= dm;
 			}
 
 			// Torsion spring
@@ -115,10 +115,10 @@ namespace HairEngine {
 				b[pi] += impulse;
 				b[i] -= impulse;
 
-				A[3][pi] += dm;
-				A[3][i] += dm;
-				A[6][pi] -= dm;
-				A[0][i] -= dm;
+				A3[pi] += dm;
+				A3[i] += dm;
+				A6[pi] -= dm;
+				A0[i] -= dm;
 			}
 
 			p[0] = p[1]; p[1] = p[2]; p[2] = p[3];
@@ -127,8 +127,8 @@ namespace HairEngine {
 
 		// Initialize b and A of the strand root
 		b[si] = (dTransform * prevPoses[si] + dTranslation - prevPoses[si]) / t;
-		A[0][si] = A[1][si] = A[2][si] = A[4][si] = A[5][si] = A[6][si] = Mat3::Zero();
-		A[3][si] = Mat3::Identity();
+		A0[si] = A1[si] = A2[si] = A4[si] = A5[si] = A6[si] = Mat3::Zero();
+		A3[si] = Mat3::Identity();
 
 		// Heptadignoal solver
 		int i1, i2, i3;
@@ -140,58 +140,58 @@ namespace HairEngine {
 			i3 = i2 - numStrand;
 
 			//compute L3
-			L[3][i] = li >= 3 ? A[0][i] : Mat3::Zero();
+			L3[i] = li >= 3 ? A0[i] : Mat3::Zero();
 
 			//compute L2
-			L[2][i] = li >= 2 ? A[1][i] : Mat3::Zero();
+			L2[i] = li >= 2 ? A1[i] : Mat3::Zero();
 			if (li >= 3)
-				L[2][i] -= L[3][i] * U[0][i3];
+				L2[i] -= L3[i] * U0[i3];
 
 			//compute L1
-			L[1][i] = li >= 1 ? A[2][i] : Mat3::Zero();
+			L1[i] = li >= 1 ? A2[i] : Mat3::Zero();
 			if (li >= 2)
-				L[1][i] -= L[2][i] * U[0][i2];
+				L1[i] -= L2[i] * U0[i2];
 			if (li >= 3)
-				L[1][i] -= L[3][i] * U[1][i3];
+				L1[i] -= L3[i] * U1[i3];
 
 			//compute L0
-			L[0][i] = A[3][i];
+			L0[i] = A3[i];
 			if (li >= 1)
-				L[0][i] -= L[1][i] * U[0][i1];
+				L0[i] -= L1[i] * U0[i1];
 			if (li >= 2)
-				L[0][i] -= L[2][i] * U[1][i2];
+				L0[i] -= L2[i] * U1[i2];
 			if (li >= 3)
-				L[0][i] -= L[3][i] * U[2][i3];
+				L0[i] -= L3[i] * U2[i3];
 
 			//compute L0i
-			L[4][i] = L[0][i].inverse();
+			L4[i] = L0[i].inverse();
 
 			//compute U2
-			U[2][i] = li + 3 < n ? L[4][i] * A[6][i] : Mat3::Zero();
+			U2[i] = li + 3 < n ? L4[i] * A6[i] : Mat3::Zero();
 
 			//compute U1
-			U[1][i] = li + 2 < n ? A[5][i] : Mat3::Zero();
+			U1[i] = li + 2 < n ? A5[i] : Mat3::Zero();
 			if (li >= 1)
-				U[1][i] -= L[1][i] * U[2][i1];
-			U[1][i] = L[4][i] * U[1][i];
+				U1[i] -= L1[i] * U2[i1];
+			U1[i] = L4[i] * U1[i];
 
 			//compute U0
-			U[0][i] = li + 1 < n ? A[4][i] : Mat3::Zero();
+			U0[i] = li + 1 < n ? A4[i] : Mat3::Zero();
 			if (li >= 1)
-				U[0][i] -= L[1][i] * U[1][i1];
+				U0[i] -= L1[i] * U1[i1];
 			if (li >= 2)
-				U[0][i] -= L[2][i] * U[2][i2];
-			U[0][i] = L[4][i] * U[0][i];
+				U0[i] -= L2[i] * U2[i2];
+			U0[i] = L4[i] * U0[i];
 
 			//compute y
 			y[i] = b[i];
 			if (li >= 1)
-				y[i] -= L[1][i] * y[i1];
+				y[i] -= L1[i] * y[i1];
 			if (li >= 2)
-				y[i] -= L[2][i] * y[i2];
+				y[i] -= L2[i] * y[i2];
 			if (li >= 3)
-				y[i] -= L[3][i] * y[i3];
-			y[i] = L[4][i] * y[i];
+				y[i] -= L3[i] * y[i3];
+			y[i] = L4[i] * y[i];
 		}
 
 		// Compute the final velocity and poses
@@ -203,11 +203,11 @@ namespace HairEngine {
 
 			vels[i] = y[i];
 			if (li + 1 < n)
-				vels[i] -= U[0][i] * vels[i1];
+				vels[i] -= U0[i] * vels[i1];
 			if (li + 2 < n)
-				vels[i] -= U[1][i] * vels[i2];
+				vels[i] -= U1[i] * vels[i2];
 			if (li + 3 < n)
-				vels[i] -= U[2][i] * vels[i3];
+				vels[i] -= U2[i] * vels[i3];
 
 			float3 prevPos = prevPoses[i];
 
@@ -317,7 +317,10 @@ namespace HairEngine {
 		int numBlock = (numStrand + numThread - 1) / numThread;
 
 		SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal<<<numBlock, numThread>>>(
-				A, L, U, y, b, poses, prevPoses, restPoses, vels, impulses,
+				A[0], A[1], A[2], A[3], A[4], A[5], A[6],
+				L[0], L[1], L[2], L[3], L[4],
+				U[0], U[1], U[2],
+				y, b, poses, prevPoses, restPoses, vels, impulses,
 				rigidness, dTransform, dTranslation, numParticle, numStrand, numParticlePerStrand,
 				pmass, damping, kStretch, kBending, kTorsion, strainLimitingTolerance, t
 		);
