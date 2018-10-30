@@ -45,6 +45,8 @@ namespace HairEngine {
 			float strainLimitingTolerance,
 			float t
 	) {
+		extern __shared__ int shared[];
+
 		// One for each strand
 		int si = blockIdx.x * blockDim.x + threadIdx.x;
 		if (si >= numStrand)
@@ -53,13 +55,13 @@ namespace HairEngine {
 		// Alias
 		const auto & n = numParticlePerStrand;
 		auto & b = vels;
+		char* buffer = (char*)(shared) + threadIdx.x *4 * sizeof(Mat3);
 
-		// Initialize the b and A
-		float3 p[4]; // Previous poses, store in register
-		float3 rp[4]; // Previous rest poses, store in register
+		Mat3 & dm = ((Mat3*)buffer)[0];
+		float3 *p = (float3*)(&dm + 1);
+		float3 *rp = p + 4;
 
 		float3 impulse;
-		Mat3 dm;
 		for (int i = si, li = 0; i < numParticle; i += numStrand, ++li) {
 
 			L0[i].asDiagonal(pmass + damping * t);
@@ -86,12 +88,6 @@ namespace HairEngine {
 				L1[i] -= dm;
 			}
 
-//			if (si == 0) {
-//				printf("p[2]: {%f, %f, %f}, p[3]: {%f, %f, %f}, rp[2]: {%f, %f, %f}, rp[3]: {%f, %f, %f}\n", p[2].x, p[2].y, p[2].z, p[3].x, p[3].y, p[3].z, rp[2].x, rp[2].y, rp[2].z, rp[3].x, rp[3].y, rp[3].z);
-//				printf("impulse: {%f, %f, %f}\n", impulse.x, impulse.y, impulse.z);
-//				printf("dm: "); dm.print(); printf("\n");
-//			}
-//
 			// Bending spring
 			if (li >= 2) {
 				getSpringInfo(p[1], p[3], rp[1], rp[3], t, kBending, impulse, dm);
@@ -131,57 +127,51 @@ namespace HairEngine {
 		L0[si].asIdentity();
 
 		// Heptadignoal solver
+		Mat3 & L0_ = ((Mat3*)buffer)[0];
+		Mat3 & L1_ = (&L0_)[1];
+		Mat3 & L2_ = (&L1_)[1];
+		Mat3 & L3_ = (&L2_)[1];
+
 		int i1, i2, i3;
 		for (int i = si, li = 0; i < numParticle; i += numStrand, ++li) {
 
+			// Load
 			i1 = i - numStrand;
 			i2 = i1 - numStrand;
 			i3 = i2 - numStrand;
 
-			//compute L2
-			if (li >= 3)
-				L2[i] -= L3[i] * U0[i3];
+			L0_ = L0[i];
+			L1_ = L1[i];
+			L2_ = L2[i];
+			L3_ = L3[i];
 
-			//compute L1
-			if (li >= 2)
-				L1[i] -= L2[i] * U0[i2];
-			if (li >= 3)
-				L1[i] -= L3[i] * U1[i3];
+			if (li >= 3) {
+				L2_ -= L3_ * U0[i3];
+				L1_ -= L3_ * U1[i3];
+				L0_ -= L3_ * U2[i3];
+				b[i] -= L3_ * b[i3];
+			}
 
-			//compute L0
-			if (li >= 1)
-				L0[i] -= L1[i] * U0[i1];
-			if (li >= 2)
-				L0[i] -= L2[i] * U1[i2];
-			if (li >= 3)
-				L0[i] -= L3[i] * U2[i3];
+			if (li >= 2) {
+				L1_ -= L2_ * U0[i2];
+				L0_ -= L2_ * U1[i2];
+				U0[i] -= L2_ * U2[i2];
+				b[i] -= L2_ * b[i2];
+			}
 
-			//compute L0 inverse
-			dm = L0[i].inverse();
+			if (li >= 1) {
+				L0_ -= L1_ * U0[i1];
+				U1[i] -= L1_ * U2[i1];
+				U0[i] -= L1_ * U1[i1];
+				b[i] -= L1_ * b[i1];
+			}
 
-			//compute U2
-			U2[i] = dm * U2[i];
+			L0_ = L0_.inverse();
 
-			//compute U1
-			if (li >= 1)
-				U1[i] -= L1[i] * U2[i1];
-			U1[i] = dm * U1[i];
-
-			//compute U0
-			if (li >= 1)
-				U0[i] -= L1[i] * U1[i1];
-			if (li >= 2)
-				U0[i] -= L2[i] * U2[i2];
-			U0[i] = dm * U0[i];
-
-			//compute y
-			if (li >= 1)
-				b[i] -= L1[i] * b[i1];
-			if (li >= 2)
-				b[i] -= L2[i] * b[i2];
-			if (li >= 3)
-				b[i] -= L3[i] * b[i3];
-			b[i] = dm * b[i];
+			U2[i] = L0_ * U2[i];
+			U1[i] = L0_ * U1[i];
+			U0[i] = L0_ * U0[i];
+			b[i] = L0_ * b[i];
 		}
 
 		// Compute the final velocity and poses
@@ -228,51 +218,6 @@ namespace HairEngine {
 				rp[0] = rp[1];
 			}
 		}
-
-//		if (si == 0) {
-//			printf("Initialize A and b:\n");
-//			for (int i = si, li = 0; i < numParticle; i += numStrand, ++li) {
-//
-//				printf("%d(%d)\n", i, li);
-//
-//				for (int k = 0; k < 7; ++k) {
-//					printf("\t\tA[%d][%d]: ", k, i);
-//					A[k][i].print();
-//					printf("\n");
-//				}
-//
-//				for (int k = 0; k < 5; ++k) {
-//					printf("\t\tL[%d][%d]: ", k, i);
-//					L[k][i].print();
-//					printf("\n");
-//				}
-//
-//				for (int k = 0; k < 3; ++k) {
-//					printf("\t\tU[%d][%d]: ", k, i);
-//					U[k][i].print();
-//					printf("\n");
-//				}
-//
-//				printf("\t\tb[%d]: {%f, %f, %f}\n", i, b[i].x, b[i].y, b[i].z);
-//				printf("\t\ty[%d]: {%f, %f, %f}\n", i, y[i].x, y[i].y, y[i].z);
-//				printf("\t\tx[%d]: {%f, %f, %f}\n", i, vels[i].x, vels[i].y, vels[i].z);
-//			}
-//		}
-
-//		if (si == 0) {
-//			for (int i = si; i < numParticle; i += numStrand) {
-//				float3 prevPos = prevPoses[i];
-//				float3 restPos = restPoses[i];
-//				float3 pos = poses[i];
-//				float3 vel = vels[i];
-//				float3 impulse =impulses[i];
-//
-//				printf("Particle(%d) {prevPos: {%f, %f, %f}, restPos: {%f, %f, %f}, pos: {%f, %f, %f}, vel: {%f, %f, %f}, impulse: {%f, %f, %f}, rigidness: %f}\n", i, prevPos.x, prevPos.y, prevPos.z, restPos.x, restPos.y, restPos.z, pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, impulse.x, impulse.y, impulse.z, rigidness[i]);
-//			}
-//
-//			printf("dTransform: "); dTransform.print(); printf("\n");
-//			printf("dTranslation: {%f, %f, %f}\n", dTranslation.x, dTranslation.y, dTranslation.z);
-//		}
 	}
 
 	void SelleMassSpringImplicitCudaSolver_resolveStrandDynamics(
@@ -305,7 +250,8 @@ namespace HairEngine {
 		int numThread = wrapSize * 8;
 		int numBlock = (numStrand + numThread - 1) / numThread;
 
-		SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal<<<numBlock, numThread>>>(
+		cudaFuncSetCacheConfig(SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal, cudaFuncCachePreferShared);
+		SelleMassSpringImplicitCudaSolver_resolveStrandDynamicsKernal<<<numBlock, numThread, 4 * sizeof(Mat3) * numThread>>>(
 				L[0], L[1], L[2], L[3],
 				U[0], U[1], U[2],
 				poses, prevPoses, restPoses, vels, impulses,
