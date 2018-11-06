@@ -107,7 +107,7 @@ namespace HairEngine {
 
 					auto d = seg->d();
 
-					if (false && MathUtility::isColinear(prevD, d, colinearMaxRad)) {
+					if (MathUtility::isColinear(prevD, d, colinearMaxRad)) {
 						// Random assign dirVec to a normalized vector until they are not so "colinear"
 						if (dirVec == Eigen::Vector3f::Zero()) {
 							do {
