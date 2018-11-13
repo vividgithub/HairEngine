@@ -9,6 +9,7 @@
 #ifdef HAIRENGINE_ENABLE_CUDA
 #include "../util/cudautil.h"
 #include "cuda_memory_converter.h"
+#include "../util/cuda_helper_math.h"
 #endif
 
 #include <array>
@@ -645,16 +646,15 @@ namespace HairEngine {
 			}
 #endif
 
-
 		// Write the cell with 0 and abs contour
 			for (int ix = 0; ix < resolution[0] - 1; ++ix)
 				for (int iy = 0; iy < resolution[1] - 1; ++iy)
 					for (int iz = 0; iz < resolution[2] - 1; ++iz) {
 
+#ifndef HAIRENGINE_ENABLE_CUDA
 						Eigen::Vector3i index3 = Eigen::Vector3i(ix, iy, iz);
 						const Eigen::Vector3f pos = sdfSolver->bbox.min() + index3.cast<float>().cwiseProduct(sdfSolver->d);
 
-#ifndef HAIRENGINE_ENABLE_CUDA
 						auto & node = sdfSolver->grid[sdfSolver->offset(Eigen::Vector3i(ix, iy, iz))];
 
 						if (node.dist == SDFCollisionSolver::DISTANCE_INVALID)
@@ -668,27 +668,88 @@ namespace HairEngine {
 								VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(node.vel))
 						);
 #else
-						unsigned long long node = gridHost[sdfSolver->offset(index3)];
-						uint32_t *nodeAddr = reinterpret_cast<uint32_t*>(&node);
+						constexpr std::array<std::pair<int, int>, 12> lineIndices = { {
+							{0, 1}, {0, 2}, {1, 3}, {2, 3},
+							{4, 5}, {4, 6}, {5, 7}, {6, 7},
+							{0, 4}, {1, 5}, {2, 6}, {3, 7}
+						} };
 
-						if (node == 0xffffffffffffffff)
+						std::array<Eigen::Vector3f, 8> poses;
+						std::array<float, 8> dists;
+						bool invalid = false;
+
+						// Get the positions and the distances
+						for (int i = 0; i < 8; ++i) {
+							Eigen::Vector3i index3 = {
+									ix + (i & 4 ? 1 : 0),
+									iy + (i & 2 ? 1 : 0),
+									iz + (i & 1 ? 1 : 0)
+							};
+
+							unsigned long long node = gridHost[sdfSolver->offset(index3)];
+
+							// Invalid
+							if (node == 0xffffffffffffffff) {
+								invalid = true;
+								break;
+							}
+
+							uint32_t *nodeAddr = reinterpret_cast<uint32_t*>(&node);
+							// Unpack the dist, primIdx, and the u, v
+							uint32_t flipDist = nodeAddr[1]; // Little endian
+							flipDist = (flipDist >> 1) | (flipDist << 31);
+
+							dists[i] = reinterpret_cast<float*>(&flipDist)[0];
+							poses[i] = sdfSolver->bbox.min() + index3.cast<float>().cwiseProduct(sdfSolver->d);
+						};
+
+						if (invalid)
 							continue;
 
-						// Unpack the dist, primIdx, and the u, v
-						uint32_t flipDist = nodeAddr[1]; // Little endian
-						flipDist = (flipDist >> 1) | (flipDist << 31);
-						float dist = reinterpret_cast<float*>(&flipDist)[0];
+						std::vector<Eigen::Vector3f> intersections;
+						for (auto lineIndex : lineIndices) {
+							auto & i1 = lineIndex.first;
+							auto & i2 = lineIndex.second;
+							auto dist1 = dists[i1];
+							auto dist2 = dists[i2];
 
-						uint32_t primIdx = nodeAddr[0];
+							// If zero is in-between
+							if ((dist1 <= 0 && dist2 >= 0) || (dist1 >= 0 && dist2 <= 0)) {
+								auto s = dist1 / (dist1 - dist2);
+								intersections.emplace_back(MathUtility::lerp(poses[i1], poses[i2], s));
+							}
+						}
 
-						auto vel = velsHost[primIdx];
+						for (const auto & intersection : intersections) {
+							VPly::writePoint(
+									os,
+									EigenUtility::toVPlyVector3f(intersection),
+									VPly::VPlyIntAttr("type", 2)
+							);
+						}
 
-						VPly::writePoint(
-								os, EigenUtility::toVPlyVector3f(pos),
-								VPly::VPlyVector3iAttr("i3", EigenUtility::toVPlyVector3i(index3)),
-								VPly::VPlyFloatAttr("d", dist),
-								VPly::VPlyVector3fAttr("v", { vel.x, vel.y, vel.z })
-						);
+//						Eigen::Vector3i index3 = Eigen::Vector3i(ix, iy, iz);
+//						const Eigen::Vector3f pos = sdfSolver->bbox.min() + index3.cast<float>().cwiseProduct(sdfSolver->d);
+//						unsigned long long node = gridHost[sdfSolver->offset(index3)];
+//						uint32_t *nodeAddr = reinterpret_cast<uint32_t*>(&node);
+//
+//						unsigned long long pack = gridHost[sdfSolver->offset(index3)];
+//						uint32_t *packAddr = reinterpret_cast<uint32_t *>(&pack);
+//
+//						float dist = ifloatflip(packAddr[1]); // Most significant 32-bit
+//						int primIdx = static_cast<int>(packAddr[0]); // Least significant 32-bit
+//
+//						if (primIdx == 0xffffffff)
+//							continue;
+//
+//						auto vel = velsHost[primIdx];
+//
+//						VPly::writePoint(
+//								os, EigenUtility::toVPlyVector3f(pos),
+//								VPly::VPlyVector3iAttr("i3", EigenUtility::toVPlyVector3i(index3)),
+//								VPly::VPlyFloatAttr("d", dist),
+//								VPly::VPlyVector3fAttr("v", { vel.x, vel.y, vel.z })
+//						);
 #endif
 					}
 		}

@@ -69,7 +69,10 @@ namespace HairEngine {
 					if (bw.boneIndex < 0)
 						break;
 
-					poses[i] += ctransforms[bw.boneIndex] * restPoses[i] * bw.weight;
+					poses[i] += EigenUtility::fromVector4fToVector3f(
+							bw.weight * ctransforms[bw.boneIndex].matrix() * restTransforms[bw.boneIndex].matrix().inverse() * EigenUtility::fromVector3fToVector4f(restPoses[i])
+					);
+//					poses[i] += ctransforms[bw.boneIndex] * (restTransforms[bw.boneIndex].inverse(Eigen::Affine) * (restPoses[i] * bw.weight));
 				}
 			}
 		}
@@ -290,22 +293,22 @@ namespace HairEngine {
 			}
 
 			// Lerp the position
-			for (int i = 0; i < npoint; ++i) {
-
-				int offset = i * nbonePerPoint;
-
-				Eigen::Matrix4f mat = Eigen::Matrix4f::Zero();
-
-				for (int bi = 0; bi < nbonePerPoint; ++bi) {
-					const auto & bw = boneWeights[offset + bi];
-					if (bw.boneIndex < 0)
-						break;
-					mat += restTransforms[bw.boneIndex].matrix() * bw.weight;
-				}
-
-				restPoses[i] = EigenUtility::fromVector4fToVector3f(mat.inverse() *
-						EigenUtility::fromVector3fToVector4f(restPoses[i]));
-			}
+//			for (int i = 0; i < npoint; ++i) {
+//
+//				int offset = i * nbonePerPoint;
+//
+//				Eigen::Matrix4f mat = Eigen::Matrix4f::Zero();
+//
+//				for (int bi = 0; bi < nbonePerPoint; ++bi) {
+//					const auto & bw = boneWeights[offset + bi];
+//					if (bw.boneIndex < 0)
+//						break;
+//					mat += restTransforms[bw.boneIndex].matrix() * bw.weight;
+//				}
+//
+//				restPoses[i] = EigenUtility::fromVector4fToVector3f(mat.inverse() *
+//						EigenUtility::fromVector3fToVector4f(restPoses[i]));
+//			}
 
 			// Get the transforms
 			transforms.resize(static_cast<size_t>(nframe * nbone));
