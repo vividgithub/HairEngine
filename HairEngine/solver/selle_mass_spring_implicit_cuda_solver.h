@@ -181,8 +181,8 @@ namespace HairEngine {
 
 			// Particle not commit, so we don't need to apply an update to cmc->parPoses
 			auto endTime = std::chrono::high_resolution_clock::now();
-			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-			printf("[SelleMassSpringImplicitCudaSolver] Timming %lldms\n", diff.count());
+			auto diffInUs = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+			printf("[SelleMassSpringImplicitCudaSolver] Timing %lld ms(%lld us)\n", diffInUs.count() / 1000, diffInUs.count());
 		}
 
 		float getParticleMass() const { return conf.mass; }

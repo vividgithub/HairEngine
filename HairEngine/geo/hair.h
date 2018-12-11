@@ -377,13 +377,24 @@ namespace HairEngine {
 		* @param os The ostream to write to
 		*/
 		void stream(std::ostream & os) const {
-			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nparticle));
-			for (int i = 0; i < nparticle; ++i)
-				FileUtility::binaryWriteVector3f(os, particles[i].pos);
 
 			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nstrand));
-			for (int i = 0; i < nstrand; ++i)
-				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strands[i].particleInfo.nparticle));
+			for (int si = 0; si < nstrand; ++si) {
+				const auto & strand = strands[si];
+				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strand.particleInfo.nparticle));
+				for (auto par = strand.particleInfo.beginPtr; par != strand.particleInfo.endPtr; ++par) {
+					FileUtility::binaryWriteVector3f(os, par->pos);
+				}
+			}
+
+			// Legacy code
+//			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nparticle));
+//			for (int i = 0; i < nparticle; ++i)
+//				FileUtility::binaryWriteVector3f(os, particles[i].pos);
+//
+//			FileUtility::binaryWriteInt32(os, static_cast<int32_t>(nstrand));
+//			for (int i = 0; i < nstrand; ++i)
+//				FileUtility::binaryWriteInt32(os, static_cast<int32_t>(strands[i].particleInfo.nparticle));
 		}
 
 		/**

@@ -130,8 +130,8 @@ namespace HairEngine {
 
 			auto endTime = std::chrono::high_resolution_clock::now();
 
-			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-			printf("[CollisionImpulseCudaSolver] Timming: %lldms\n", diff.count());
+			auto diffInUs = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+			printf("[CollisionImpulseCudaSolver] Timing: %lld ms(%lld us)\n", diffInUs.count() / 1000, diffInUs.count());
 		}
 
 	HairEngine_Protected:

@@ -12,6 +12,7 @@
 #include "../util/cuda_helper_math.h"
 #endif
 
+#include <chrono>
 #include <array>
 #include <algorithm>
 #include "solver.h"
@@ -556,7 +557,13 @@ namespace HairEngine {
 
 //			std::cout << infos.size() << std::endl;
 #else
+			auto startTime = std::chrono::high_resolution_clock::now();
 			cudaResolveCollision(info.t);
+			auto endTime = std::chrono::high_resolution_clock::now();
+
+			auto diffInUs = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+
+			printf("[SDFCollisionSolver] Timing: %lld ms(%lld us)\n", diffInUs.count() / 1000, diffInUs.count());
 #endif
 		}
 

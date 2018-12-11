@@ -69,8 +69,8 @@ namespace HairEngine {
 
 			auto endTime = std::chrono::high_resolution_clock::now();
 
-			auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-			printf("[HairContactsImpulseCudaSolver] Timming: %lldms\n", diff.count());
+			auto diffInUs = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+			printf("[HairContactsImpulseCudaSolver] Timing: %lld ms(%lld us)\n", diffInUs.count() / 1000, diffInUs.count());
 		}
 
 		void tearDown() override {
@@ -153,12 +153,12 @@ namespace HairEngine {
 					VPly::writeLine(
 							os,
 							VPly::VPlyVector3f(midpoint1.x, midpoint1.y, midpoint1.z),
-							VPly::VPlyVector3f(midpoint2.x, midpoint2.y, midpoint2.z),
-							VPly::VPlyFloatAttr("l0", impulseCudaSolver->lCreate),
-							VPly::VPlyFloatAttr("l", length(midpoint1 - midpoint2)),
-							VPly::VPlyIntAttr("fromid", sid1),
-							VPly::VPlyIntAttr("toid", sid2),
-							VPly::VPlyIntAttr("type", 10)
+							VPly::VPlyVector3f(midpoint2.x, midpoint2.y, midpoint2.z)
+//							VPly::VPlyFloatAttr("l0", impulseCudaSolver->lCreate),
+//							VPly::VPlyFloatAttr("l", length(midpoint1 - midpoint2)),
+//							VPly::VPlyIntAttr("fromid", sid1),
+//							VPly::VPlyIntAttr("toid", sid2),
+//							VPly::VPlyIntAttr("type", 10)
  					);
 				}
 			}

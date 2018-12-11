@@ -83,8 +83,9 @@ namespace HairEngine {
 					// Check from start to end
 					for (int hashIt = hashStart; hashIt != hashEnd; ++hashIt) {
 						int sid2 = sids[hashIt];
+						int sid2StrandIndex = segStrandIndices[sid2];
 
-						if (sid2 == sid1 || segStrandIndices[sid2] == sid1StrandIndex)
+						if (sid2 == sid1 || sid2StrandIndex == sid1StrandIndex)
 							continue;
 
 						float3 d = midpoints[sid2] - center;
@@ -93,7 +94,7 @@ namespace HairEngine {
 						if (l < lCreate) {
 							// Check whether it is added
 							bool added = false;
-							for (int i = 0; i < n_; ++i) if (segContacts[i] == sid2) {
+							for (int i = 0; i < n_; ++i) if (segStrandIndices[segContacts[i]] == sid2StrandIndex) {
 									added = true;
 									break;
 							}
