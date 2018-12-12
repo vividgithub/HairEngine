@@ -19,6 +19,7 @@
 #include "../solver/hair_contacts_impulse_cuda_solver.h"
 #include "../solver/collision_impulse_cuda_solver.h"
 #include "../solver/selle_mass_spring_implicit_cuda_solver.h"
+#include "../solver/hair_contacts_pbd_solver.h"
 
 using namespace HairEngine;
 using namespace std;
@@ -85,7 +86,7 @@ int main(int argc, char **argv) {
 		);
 		auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, gravity);
 
-		HairContactsImpulseCudaSolver *hairContactsSolverPtr = nullptr;
+		HairContactsPBDSolver *hairContactsSolverPtr = nullptr;
 		CollisionImpulseCudaSolver *collisionImpulseSolverPtr = nullptr;
 
 		auto enableHairContacts = ini.GetBoolean("haircontacts", "enable");
@@ -107,21 +108,20 @@ int main(int argc, char **argv) {
 
 		cmcPtr = integrator.addSolver<CudaMemoryConverter>(copyOptions).get();
 
+		if (enableHairContacts) {
+			hairContactsSolverPtr = integrator.addSolver<HairContactsPBDSolver>(
+					ini.GetReal("haircontacts", "kernel_radius"),
+					ini.GetInteger("haircontacts", "iterations"),
+					ini.GetReal("haircontacts", "density_scale"),
+					ini.GetReal("haircontacts", "resolution"),
+					ini.GetInteger("haircontacts", "cuda_wrap_size")
+			).get();
+		}
+
 		// Add hair contacts and collisions solver
-		if (enableHairContacts || enableHairCollisions) {
+		if (enableHairCollisions) {
 
 			smcPtr = integrator.addSolver<CudaSegmentMidpointComputer>().get();
-
-			if (enableHairContacts)
-				hairContactsSolverPtr = integrator.addSolver<HairContactsImpulseCudaSolver>(
-						smcPtr,
-						ini.GetReal("haircontacts", "creating_distance"),
-						ini.GetReal("haircontacts", "breaking_distance"),
-						ini.GetInteger("haircontacts", "max_contacts"),
-						ini.GetReal("haircontacts", "stiffness"),
-						ini.GetReal("haircontacts", "resolution"),
-						ini.GetInteger("haircontacts", "cuda_wrap_size")
-				).get();
 
 			if (enableHairCollisions)
 				collisionImpulseSolverPtr = integrator.addSolver<CollisionImpulseCudaSolver>(
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
 //		}
 
 		if (ini.GetBoolean("visualize", "hair_contacts_enable")) {
-			auto hairContactsVisualizer = integrator.addSolver<HairContactsImpulseCudaVisualizer>(
+			auto hairContactsVisualizer = integrator.addSolver<HairContactsPBDVisualizer>(
 					ini.Get("visualize", "hair_contacts_folder"),
 					ini.Get("visualize", "hair_contacts_name_pattern"),
 					visualizeTime,

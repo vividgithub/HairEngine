@@ -1,5 +1,7 @@
 
 #include "../util/cuda_helper_math.h"
+#include "../util/cudautil.h"
+#include "../solver/hair_contacts_pbd_solver_lambda_computer.h"
 #include <cstdio>
 
 namespace HairEngine {
@@ -23,15 +25,15 @@ namespace HairEngine {
 		cudaDeviceSynchronize();
 	}
 
-	__global__
 	template <typename Func>
+	__global__
 	void ParticleSpatialHashing_rangeSearchKernel(
 			Func func, // Pass by value to the kernel
 			const int *hashStarts,
 			const int *hashEnds,
 			const int *pids,
 			const float3 *positions,
-			float r2,
+			float r,
 			float3 dInv,
 			int n,
 			int hashShift
@@ -48,6 +50,7 @@ namespace HairEngine {
 		int3 index3Max = make_int3((pos1 + r) * dInv);
 		int3 index3Min = make_int3((pos1 - r) * dInv);
 
+		float r2 = r * r;
 		for (int ix = index3Min.x; ix <= index3Max.x; ++ix)
 			for (int iy = index3Min.y; iy <= index3Max.y; ++iy)
 				for (int iz = index3Min.z; iz <= index3Max.z; ++iz) {
@@ -63,7 +66,7 @@ namespace HairEngine {
 
 						float distance2 = length2(pos2 - pos1);
 						if (distance2 <= r2) {
-							func(pid1, pid2, pos1, pos2, sqrtf(distance2))
+							func(pid1, pid2, pos1, pos2, sqrtf(distance2));
 						}
 					}
 				}
@@ -88,6 +91,36 @@ namespace HairEngine {
 		CudaUtility::getGridSizeForKernelComputation(n, wrapSize, &numBlock, &numThread);
 
 		ParticleSpatialHashing_rangeSearchKernel<Func><<<numBlock, numThread>>>(func, hashStarts,
-				hashEnds, pids, positions, r * r, dInv, n, hashShift);
+				hashEnds, pids, positions, r, dInv, n, hashShift);
 	}
+
+	/*
+	 * Register tempalte for Particle Spatial Hashing range search
+	 */
+
+	template void ParticleSpatialHashing_rangeSearch<HairContactsPBDDensityComputer>(
+			const HairContactsPBDDensityComputer & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			float r,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	);
+
+	template void ParticleSpatialHashing_rangeSearch<HairContactsPBDPositionCorrectionComputer>(
+			const HairContactsPBDPositionCorrectionComputer & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			float r,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	);
 }
