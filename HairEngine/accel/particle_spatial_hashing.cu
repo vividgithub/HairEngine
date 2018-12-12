@@ -22,4 +22,72 @@ namespace HairEngine {
 		ParticleSpatialHashing_computeHashValueByPositionsKernal<<<numBlock, numThread>>>(poses, pHashes, dInv, numParticle, shift);
 		cudaDeviceSynchronize();
 	}
+
+	__global__
+	template <typename Func>
+	void ParticleSpatialHashing_rangeSearchKernel(
+			Func func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			float r2,
+			float3 dInv,
+			int n,
+			int hashShift
+	) {
+		int idx = blockIdx.x * blockDim.x + threadIdx.x;
+		if (idx >= n)
+			return;
+
+		int pid1 = pids[idx];
+		float3 pos1 = positions[pid1];
+
+		func.before(pid1, pos1);
+
+		int3 index3Max = make_int3((pos1 + r) * dInv);
+		int3 index3Min = make_int3((pos1 - r) * dInv);
+
+		for (int ix = index3Min.x; ix <= index3Max.x; ++ix)
+			for (int iy = index3Min.y; iy <= index3Max.y; ++iy)
+				for (int iz = index3Min.z; iz <= index3Max.z; ++iz) {
+					uint32_t hash = getHashValueFromIndex3(make_int3(ix, iy, iz), hashShift);
+					int hashStart = hashStarts[hash];
+					if (hashStart == 0xffffffff)
+						continue;
+					int hashEnd = hashEnds[hash];
+
+					for (int hashIt = hashStart; hashIt != hashEnd; ++hashIt) {
+						int pid2 = pids[hashIt];
+						float3 pos2 = positions[pid2];
+
+						float distance2 = length2(pos2 - pos1);
+						if (distance2 <= r2) {
+							func(pid1, pid2, pos1, pos2, sqrtf(distance2))
+						}
+					}
+				}
+
+		func.after(pid1, pos1);
+	}
+
+	template <typename Func>
+	void ParticleSpatialHashing_rangeSearch(
+			const Func & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			float r,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	) {
+		int numBlock, numThread;
+		CudaUtility::getGridSizeForKernelComputation(n, wrapSize, &numBlock, &numThread);
+
+		ParticleSpatialHashing_rangeSearchKernel<Func><<<numBlock, numThread>>>(func, hashStarts,
+				hashEnds, pids, positions, r * r, dInv, n, hashShift);
+	}
 }

@@ -115,10 +115,19 @@ namespace HairEngine {
 					tempBuffer.emplace_back(transform(*it));
 				copyFromHostToDevice(dst, &(tempBuffer[0]), static_cast<int>(tempBuffer.size()));
 			}
-
 		}
 
-
+		/**
+		 * Get the block size and thread size based on current computation size n and the wrap size
+		 * @param n The computation size
+		 * @param wrapSize The size of the wrap
+		 * @param outNumBlock The number of the block
+		 * @param outNumThread The number of the thread
+		 */
+		inline void getGridSizeForKernelComputation(int n, int wrapSize, int *outNumBlock, int *outNumThread) {
+			*outNumThread = 32 * wrapSize;
+			*outNumBlock = (n + *outNumThread - 1) / *outNumThread;
+ 		}
 	}
 }
 
