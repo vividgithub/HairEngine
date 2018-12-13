@@ -111,6 +111,7 @@ int main(int argc, char **argv) {
 		if (enableHairContacts) {
 			hairContactsSolverPtr = integrator.addSolver<HairContactsPBDSolver>(
 					ini.GetReal("haircontacts", "kernel_radius"),
+					ini.GetReal("haircontacts", "particle_size"),
 					ini.GetInteger("haircontacts", "iterations"),
 					ini.GetReal("haircontacts", "density_scale"),
 					ini.GetReal("haircontacts", "resolution"),

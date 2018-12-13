@@ -35,18 +35,19 @@ namespace HairEngine {
 
 	HairEngine_Public:
 
-		HairContactsPBDSolver(float kernelRadius, int numIteration = 4, float targetDensityScale = 1.0f,
+		HairContactsPBDSolver(float kernelRadius, float particleSize, int numIteration = 4, float targetDensityScale = 1.0f,
 				float spatialHashingResolution = 1.0f, int wrapSize=8):
-			CudaBasedSolver(Pos_ | Vel_),
+			CudaBasedSolver(Pos_ | Vel_ | RestPos_),
 			numIteration(numIteration),
 			h(kernelRadius),
 			hSearch(kernelRadius / spatialHashingResolution),
 			rho0Scale(targetDensityScale),
+			rho0(1.0f / (particleSize * particleSize * particleSize)),
 			wrapSize(wrapSize) {
 
 			// Compute f1 and f2 based on h
 			f1 = static_cast<float>(315.0 / (64.0 * M_PI * pow(h, 9.0)));
-			f2 = static_cast<float>(-45.0 / (M_PI) * pow(h, 6.0));
+			f2 = static_cast<float>(-45.0 / (M_PI * pow(h, 6.0)));
 		}
 
 		void setup(const Hair &hair, const Eigen::Affine3f &currentTransform) override {
@@ -61,22 +62,10 @@ namespace HairEngine {
 
 			// Allocate the density computer
 			// Since rho0 is unknown and only relevant in computing lambdas, we can assign 0.0f to it first
-			densityComputer = new DensityComputer(rhos, grad1, grad2, lambdas, hair.nparticle, 0.0f, h, f1, f2);
+			densityComputer = new DensityComputer(rhos, grad1, grad2, lambdas, hair.nparticle, h, rho0, f1, f2);
 
 			psh = new ParticleSpatialHashing(hair.nparticle, make_float3(hSearch));
 			psh->update(cmc->parRestPoses, wrapSize);
-
-			// Compute the rest density
-			densityComputer->clear();
-			psh->rangeSearch<DensityComputer>(*densityComputer, h, wrapSize);
-
-			{
-				float *rhos_ = new float[hair.nparticle];
-				CudaUtility::copyFromDeviceToHost(rhos_, rhos, hair.nparticle);
-				rho0 = rho0Scale * std::accumulate(rhos_, rhos_ + hair.nparticle, 0.0f) / hair.nparticle;
-				delete [] rhos_;
-			}
-			densityComputer->rho0 = rho0; // Rest the rho0
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
@@ -84,7 +73,7 @@ namespace HairEngine {
 
 			if (!positionCorrectionComputer)
 				positionCorrectionComputer = new PositionCorrectionComputer(rhos, lambdas, dxs,
-						cmc->parRestPoses, cmc->parVels, hair.nparticle, h, info.t, f2);
+						cmc->parPoses, cmc->parVels, hair.nparticle, h, rho0, info.t, f2);
 
 			//Computer spatial hashing
 			psh->update(cmc->parPoses, wrapSize);
@@ -95,7 +84,9 @@ namespace HairEngine {
 			positionCorrectionComputer->tInv = numIteration / info.t;
 
 			for (int _ = 0; _ < numIteration; ++_) {
+				densityComputer->clear();
 				psh->rangeSearch<DensityComputer>(*densityComputer, h, wrapSize);
+				positionCorrectionComputer->clear();
 				psh->rangeSearch<PositionCorrectionComputer>(*positionCorrectionComputer, h, wrapSize);
 			}
 		}
@@ -160,8 +151,6 @@ namespace HairEngine {
 
 		void visualize(std::ostream &os, Hair &hair, const IntegrationInfo &info) override {
 
-			Visualizer::solve(hair, info);
-
 			int n = hair.nparticle;
 
 			// Allocate space if needed
@@ -183,8 +172,13 @@ namespace HairEngine {
 			CudaUtility::copyFromDeviceToHost(rhos, solver->rhos, n);
 			CudaUtility::copyFromDeviceToHost(dxs, solver->dxs, n);
 
+			float rho = 0.0f;
 			for (int i = 0; i < hair.nparticle; ++i) {
-				auto par = hair.particles + i;
+
+				auto li1 = i / hair.nstrand;
+				auto si1 = i % hair.nstrand;
+				auto par = hair.strands[si1].particleInfo.beginPtr + li1;
+
 				VPly::writePoint(
 						os,
 						EigenUtility::toVPlyVector3f(par->pos),
@@ -194,7 +188,12 @@ namespace HairEngine {
 						VPly::VPlyFloatAttr("rho", rhos[i]),
 						VPly::VPlyVector3fAttr("dx", { dxs[i].x, dxs[i].y, dxs[i].z })
 				);
+				rho += rhos[i];
 			}
+
+			rho /= hair.nparticle;
+
+			printf("[HairContactsPBDVisualizer]: rho=%e\n", rho);
 		}
 
 		void tearDown() override {

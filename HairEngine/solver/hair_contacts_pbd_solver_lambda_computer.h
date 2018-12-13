@@ -25,7 +25,7 @@ namespace HairEngine {
 
 		HairContactsPBDDensityComputer(float *rhos, float3 *grad1, float *grad2, float *lambdas,
 				int n, float h, float rho0, float f1, float f2):
-				rhos(rhos), grad1(grad1), grad2(grad2), n(n), h(h), rho0(rho0), f1(f1), f2(f2) {}
+				rhos(rhos), grad1(grad1), grad2(grad2), lambdas(lambdas), n(n), h(h), rho0(rho0), f1(f1), f2(f2) {}
 
 		void clear() {
 			cudaMemset(rhos, 0x00, sizeof(float) * n);
@@ -38,25 +38,26 @@ namespace HairEngine {
 
 		__host__ __device__ __forceinline__
 		void operator()(int pid1, int pid2, float3 pos1, float3 pos2, float r) {
-			// Compute the densities of pid1
-			float g2 = (h - r);
 
-			// Density
-			float g1 = g2 * (h + r); // ( h^2 - r^2)
+			// Compute the densities of pid1
+			// Density = (315 / (64 * pi * h^9)) * (h^2 - r^2)^3 = f1 * (h^2 - r^2)^3
+			float g1 = (h - r) * (h + r); // ( h^2 - r^2)
 			g1 = g1 * g1 * g1; // (h^2 - r^2)^3
 			rhos[pid1] += f1 * g1; // f1 * (h^2 - r^2)^3
 
 			// Gradient, r = 0 gradient is not defined
+			// Gradient pid1 = (-45 / (pi * h^6)) * (h - r)^2 * (r / length(r))
+			// Gradient pid2 = - Gradient i
 			if (r > 0) {
-				g2 = g2 * g2 * f2; // f2 * (h - r)^2
-				grad1[pid1] += (pos2 - pos1) * (g2 / r);
-				grad2[pid2] += g2 * g2; // Since the length of (pos2 - pos1) /r is 1
+				float3 g2 = (1.0f / rho0) * f2 * (h - r) * (h - r) * ((pos2 - pos1) / r); // f2 * (h - r)^2
+				grad1[pid1] += g2;
+				grad2[pid1] += length2(g2); // Since the length of (pos2 - pos1) /r is 1
 			}
 		}
 
 		__host__ __device__ __forceinline__
 		void after(int pid1, float3 pos1) {
-			lambdas[pid1] = (rho0 - rhos[pid1]) / (length2(grad1[pid1]) + grad2[pid1]);
+			lambdas[pid1] = - fmaxf(rhos[pid1] / rho0 - 1.0f, 0.0f) / (length2(grad1[pid1]) + grad2[pid1] + 1e-5f);
 		}
 
 		float *rhos; ///< The output array of densities, MUST store in GPU
@@ -74,8 +75,8 @@ namespace HairEngine {
 	struct HairContactsPBDPositionCorrectionComputer {
 
 		HairContactsPBDPositionCorrectionComputer(const float *rhos, const float *lambdas,
-		                           float3 *dxs, float3 *poses, float3 *vels, int n, int h, float t, float f2):
-				rhos(rhos), lambdas(lambdas), dxs(dxs), poses(poses), vels(vels), n(n), h(h), tInv(1.0f / t), f2(f2) {}
+		                           float3 *dxs, float3 *poses, float3 *vels, int n, int h, float rho0, float t, float f2):
+				rhos(rhos), lambdas(lambdas), dxs(dxs), poses(poses), vels(vels), n(n), h(h), rho0(rho0), tInv(1.0f / t), f2(f2) {}
 
 		void clear() {
 			cudaMemset(dxs, 0x00, sizeof(float3) * n);
@@ -88,9 +89,7 @@ namespace HairEngine {
 		void operator()(int pid1, int pid2, float3 pos1, float3 pos2, float r) {
 			// Gradient is not defined if r == 0
 			if (r > 0) {
-				float g2 = h - r;
-				g2 = g2 * g2 * g2; // f2 * (h - r)^2
-				dxs[pid1] += (pos2 - pos1) * (g2 * (lambdas[pid1] + lambdas[pid2]) / r); // (lambda[pid1] + lambda[pid2]) * gradient(W(i,j))
+				dxs[pid1] += (1.0f / rho0) * (lambdas[pid1] + lambdas[pid2]) * (f2 * (h - r) * (h - r) * (pos1 - pos2) / r);
 			}
 		}
 
@@ -111,6 +110,7 @@ namespace HairEngine {
 		int n;
 		float h;
 		float tInv; ///< The inverse of time
+		float rho0;
 		float f2;
 	};
 }
