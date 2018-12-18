@@ -125,4 +125,17 @@ namespace HairEngine {
 			int hashShift,
 			int wrapSize
 	);
+
+	template void ParticleSpatialHashing_rangeSearch<HairContactsPBDViscosityComputer>(
+			const HairContactsPBDViscosityComputer & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			float r,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	);
 }

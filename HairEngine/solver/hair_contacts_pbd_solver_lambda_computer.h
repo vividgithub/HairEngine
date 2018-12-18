@@ -133,6 +133,46 @@ namespace HairEngine {
 		float f1;
 		float f2;
 	};
+
+	struct HairContactsPBDViscosityComputer {
+
+		HairContactsPBDViscosityComputer(
+				const float3 *vels_,
+				float3 *vels,
+				int n,
+				float h,
+				float rho0,
+				float viscosity
+		):
+			vels_(vels_),
+			vels(vels),
+			n(n),
+			h(h),
+			volume0(1.0f / rho0),
+			viscosity(viscosity),
+			f1(static_cast<float>(315.0 / (64.0 * M_PI * pow(h, 9.0)))) {}
+
+		__host__ __device__ __forceinline__
+		void before(int pid1, float3 pos1) { vels[pid1] = (1 - viscosity) * vels_[pid1]; }
+
+		__host__ __device__ __forceinline__
+		void operator()(int pid1, int pid2, float3 pos1, float3 pos2, float r) {
+			float g1 = (h - r) * (h + r); // ( h^2 - r^2)
+			g1 = f1 * g1 * g1 * g1; // W(i, j)
+			vels[pid1] += (viscosity * g1 * volume0) * vels_[pid2];
+		}
+
+		__host__ __device__ __forceinline__
+		void after(int pid1, float3 pos1) {}
+
+		const float3 *vels_;
+		float3 *vels;
+		int n;
+		float h;
+		float viscosity;
+		float volume0;
+		float f1;
+	};
 }
 
 #endif //HAIRENGINE_HAIR_CONTACTS_PBD_SOLVER_LAMBDA_COMPUTER_H

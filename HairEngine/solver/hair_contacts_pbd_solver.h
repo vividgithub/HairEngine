@@ -43,6 +43,7 @@ namespace HairEngine {
 
 		using DensityComputer = HairContactsPBDDensityComputer;
 		using PositionCorrectionComputer = HairContactsPBDPositionCorrectionComputer;
+		using ViscosityComputer = HairContactsPBDViscosityComputer;
 
 	HairEngine_Public:
 
@@ -77,19 +78,18 @@ namespace HairEngine {
 			grad2 = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
 			lambdas = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
 			dxs = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
+//			vels_ = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
 
 			// Allocate the density computer
 			densityComputer = new DensityComputer(rhos, grad1, grad2, lambdas, hair.nparticle, h, rho0);
+			positionCorrectionComputer = new PositionCorrectionComputer(rhos, lambdas, dxs, hair.nparticle, h, rho0);
+//			viscosityComputer = new ViscosityComputer(vels_, vels, hair.nparticle, h, rho0, vis);
 
 			psh = new ParticleSpatialHashing(hair.nparticle, make_float3(hSearch));
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 			Solver::solve(hair, info);
-
-			if (!positionCorrectionComputer)
-				positionCorrectionComputer = new PositionCorrectionComputer(rhos, lambdas, dxs,
-						hair.nparticle, h, rho0);
 
 			//Computer spatial hashing
 			psh->update(poses, wrapSize);
@@ -121,6 +121,7 @@ namespace HairEngine {
 			HairContactsPBDSolver_commitParticleVelocities(poses, oldPoses, vels, 1.0f / info.t, hair.nparticle, wrapSize);
 
 			// Compute the velocity viscosity
+//			psh->rangeSearch<ViscosityComputer>(*viscosityComputer, h, wrapSize);
 		}
 
 		void tearDown() override {
@@ -129,12 +130,14 @@ namespace HairEngine {
 
 			delete psh;
 			delete densityComputer;
+//			delete viscosityComputer;
 
 			CudaUtility::deallocateCudaMemory(rhos);
 			CudaUtility::deallocateCudaMemory(grad1);
 			CudaUtility::deallocateCudaMemory(grad2);
 			CudaUtility::deallocateCudaMemory(lambdas);
 			CudaUtility::deallocateCudaMemory(dxs);
+//			CudaUtility::deallocateCudaMemory(vels_);
 		}
 
 	HairEngine_Protected:
@@ -168,6 +171,7 @@ namespace HairEngine {
 
 		float3 *dxs; ///< The position correction values for each iterations
 
+//		float3 *vels_; ///< An allocated space for storing the velocities before viscosity correction
 		float3 *vels; ///< The velocities array
 
 //		/// Equals to the particle that needs to be modified, if it needs to change the hair root, then n = hair.nparticle.
@@ -182,7 +186,7 @@ namespace HairEngine {
 
 		DensityComputer *densityComputer = nullptr; ///< The density computer lambda
 		PositionCorrectionComputer *positionCorrectionComputer = nullptr; ///< The position correction computer lambda
-
+//		ViscosityComputer *viscosityComputer = nullptr; ///< The viscosity computer lambda
 	};
 
 	class HairContactsPBDVisualizer: public Visualizer {
