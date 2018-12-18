@@ -109,7 +109,6 @@ namespace HairEngine {
 	/*
 	 * Register tempalte for Particle Spatial Hashing range search
 	 */
-
 	template void ParticleSpatialHashing_rangeSearch<HairContactsPBDDensityComputer>(
 			const HairContactsPBDDensityComputer & func, // Pass by value to the kernel
 			const int *hashStarts,

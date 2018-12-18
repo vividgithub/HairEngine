@@ -7,7 +7,6 @@
 #include <cuda_runtime.h>
 #include "../util/cuda_helper_math.h"
 #include "../util/cudautil.h"
-#include "../util/parallutil.h"
 #include "../precompiled/precompiled.h"
 
 namespace HairEngine {

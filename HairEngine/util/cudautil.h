@@ -85,6 +85,18 @@ namespace HairEngine {
 		}
 
 		/**
+		 * Copy the memory from device to device
+		 * @tparam T The type of the copied source and destination pointer
+		 * @param dst The destination pointer
+		 * @param src The source pointer
+		 * @param n The size to copy
+		 */
+		template <typename T>
+		inline void copyFromDeviceToDevice(T * dst, T *src, int n) {
+			cudaMemcpy(dst, src, sizeof(T) * n, cudaMemcpyDeviceToDevice);
+		}
+
+		/**
 		 * Copy a group of data which is defined by a iterator range to a device memory.
 		 *
 		 * @tparam T The type for the destination (device) pointer

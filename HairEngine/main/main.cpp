@@ -108,17 +108,6 @@ int main(int argc, char **argv) {
 
 		cmcPtr = integrator.addSolver<CudaMemoryConverter>(copyOptions).get();
 
-		if (enableHairContacts) {
-			hairContactsSolverPtr = integrator.addSolver<HairContactsPBDSolver>(
-					ini.GetReal("haircontacts", "kernel_radius"),
-					ini.GetReal("haircontacts", "particle_size"),
-					ini.GetInteger("haircontacts", "iterations"),
-					ini.GetReal("haircontacts", "density_scale"),
-					ini.GetReal("haircontacts", "resolution"),
-					ini.GetInteger("haircontacts", "cuda_wrap_size")
-			).get();
-		}
-
 		// Add hair contacts and collisions solver
 		if (enableHairCollisions) {
 
@@ -152,6 +141,23 @@ int main(int argc, char **argv) {
 				massSpringConf,
 				ini.GetInteger("massspring", "cuda_wrap_size")
 		);
+
+		if (enableHairContacts) {
+			// We use the computed poses from mass spring integration.
+			// With the old positions and current velocities are stored in cmcPtr.
+			hairContactsSolverPtr = integrator.addSolver<HairContactsPBDSolver>(
+					ini.GetReal("haircontacts", "kernel_radius"),
+					ini.GetReal("haircontacts", "particle_size"),
+					massSpringSolver->getComputedPoses(),
+					cmcPtr->parPoses,
+					cmcPtr->parVels,
+					ini.GetInteger("haircontacts", "iterations"),
+					ini.GetReal("haircontacts", "density_scale"),
+					ini.GetReal("haircontacts", "resolution"),
+					false,
+					ini.GetInteger("haircontacts", "cuda_wrap_size")
+			).get();
+		}
 
 		auto boneSkinningUpdater = integrator.addSolver<BoneSkinningAnimationDataUpdater>(&bkad);
 
