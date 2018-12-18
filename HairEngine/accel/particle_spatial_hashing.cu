@@ -45,19 +45,11 @@ namespace HairEngine {
 		int pid1 = pids[idx];
 		float3 pos1 = positions[pid1];
 
-//		if (idx == 0)
-//			printf("Range Search: r=%f, dInv={%f, %f, %f}, n=%d, shift=%d\n", r, dInv.x, dInv.y, dInv.z, n, hashShift);
-
 		func.before(pid1, pos1);
 
-//		if (idx == 0)
-//			printf("pid1=%d, pos1={%f, %f, %f}\n", pid1, pos1.x, pos1.y, pos1.z);
-
-		int3 index3Max = make_int3((pos1 + r) * dInv);
+		int3 index3Max = make_int3((pos1 + r) * dInv); // Up-Scaling
 		int3 index3Min = make_int3((pos1 - r) * dInv);
 
-//		if (idx == 0)
-//			printf("index3Min={%d, %d, %d}, index3Max={%d, %d, %d}\n", index3Min.x, index3Min.y, index3Min.z, index3Max.x, index3Max.y, index3Max.z);
 
 		float r2 = r * r;
 		for (int ix = index3Min.x; ix <= index3Max.x; ++ix)
@@ -74,9 +66,8 @@ namespace HairEngine {
 						float3 pos2 = positions[pid2];
 
 						float distance2 = length2(pos2 - pos1);
+
 						if (distance2 <= r2) {
-//							if (idx == 0)
-//								printf("Check pid1=%d, pid2=%d, pos1={%f, %f, %f}, pos2={%f, %f, %f}, d=%f\n", pid1, pid2, pos1.x, pos1.y, pos1.z, pos2.x, pos2.y, pos2.z, sqrtf(distance2));
 							func(pid1, pid2, pos1, pos2, sqrtf(distance2));
 						}
 					}

@@ -22,8 +22,16 @@ namespace HairEngine {
 
 	class HairContactsPBDVisualizer;
 
-	void HairContactsPBDSolver_commitParticleVelocities(const float3 * poses2, const float3 * poses1, float3 *vels,
-			float tInv, int numParticle, int wrapSize);
+	void HairContactsPBDSolver_commitParticleVelocities(
+			const float3 * poses2,
+			const float3 * poses1,
+			float3 *vels,
+			float tInv,
+			int numParticle,
+			int wrapSize
+	);
+
+	void HairContactsPBDSolver_addCorrectionPositions(float3 *poses, const float3 *dxs, int n, int wrapSize);
 
 	/**
 	 * HairContactsPBDSolver uses position based dynamics to control the density
@@ -38,16 +46,24 @@ namespace HairEngine {
 
 	HairEngine_Public:
 
-		HairContactsPBDSolver(float kernelRadius, float particleSize, float3 *currentPoses,
-				const float3 *oldPoses, float3 *vels, int numIteration = 4, float targetDensityScale = 1.0f,
-				float spatialHashingResolution = 1.0f, bool changeHairRoot = false, int wrapSize=8):
+		HairContactsPBDSolver(
+				float kernelRadius,
+				float particleSize,
+				float3 *currentPoses,
+				const float3 *oldPoses,
+				float3 *vels,
+				float viscosityCoefficient = 0.05f,
+				int numIteration = 2,
+				float spatialHashingResolution = 1.0f,
+				bool changeHairRoot = false,
+				int wrapSize=8):
 			numIteration(numIteration),
 			h(kernelRadius),
 			poses(currentPoses),
 			oldPoses(oldPoses),
 			vels(vels),
+			vis(viscosityCoefficient),
 			hSearch(kernelRadius / spatialHashingResolution),
-			rho0Scale(targetDensityScale),
 			rho0(1.0f / (particleSize * particleSize * particleSize)),
 			changeHairRoot(changeHairRoot),
 			wrapSize(wrapSize) {}
@@ -55,35 +71,31 @@ namespace HairEngine {
 		void setup(const Hair &hair, const Eigen::Affine3f &currentTransform) override {
 			Solver::setup(hair, currentTransform);
 
-			n = changeHairRoot ? hair.nparticle : hair.nparticle - hair.nstrand;
-			offset = changeHairRoot ? 0 : hair.nstrand;
-
 			// Allocate space
-			rhos = CudaUtility::allocateCudaMemory<float>(n);
-			grad1 = CudaUtility::allocateCudaMemory<float3>(n);
-			grad2 = CudaUtility::allocateCudaMemory<float>(n);
-			lambdas = CudaUtility::allocateCudaMemory<float>(n);
+			rhos = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
+			grad1 = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
+			grad2 = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
+			lambdas = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
+			dxs = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
 
 			// Allocate the density computer
-			densityComputer = new DensityComputer(rhos, grad1, grad2, lambdas, n, h, rho0);
+			densityComputer = new DensityComputer(rhos, grad1, grad2, lambdas, hair.nparticle, h, rho0);
 
-			psh = new ParticleSpatialHashing(n, make_float3(hSearch));
+			psh = new ParticleSpatialHashing(hair.nparticle, make_float3(hSearch));
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 			Solver::solve(hair, info);
 
 			if (!positionCorrectionComputer)
-				positionCorrectionComputer = new PositionCorrectionComputer(rhos, lambdas, poses + offset, n, h, rho0, info.t);
+				positionCorrectionComputer = new PositionCorrectionComputer(rhos, lambdas, dxs,
+						hair.nparticle, h, rho0);
 
-			// With t = info.t / numIteration, so tInv = numIteration / info.t
-			positionCorrectionComputer->tInv = numIteration / info.t;
+			//Computer spatial hashing
+			psh->update(poses, wrapSize);
 
 			// Iterations
 			for (int _ = 0; _ < numIteration; ++_) {
-
-				//Computer spatial hashing
-				psh->update(poses + offset, wrapSize);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -95,6 +107,9 @@ namespace HairEngine {
 
 				auto t3 = std::chrono::high_resolution_clock::now();
 
+				// Add dxs to the poses buffer
+				HairContactsPBDSolver_addCorrectionPositions(poses, dxs, hair.nparticle, wrapSize);
+
 				auto tDensityCompute = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 				auto tVelocityProjection = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
 
@@ -104,6 +119,8 @@ namespace HairEngine {
 
 			// Compute the velocities
 			HairContactsPBDSolver_commitParticleVelocities(poses, oldPoses, vels, 1.0f / info.t, hair.nparticle, wrapSize);
+
+			// Compute the velocity viscosity
 		}
 
 		void tearDown() override {
@@ -117,20 +134,19 @@ namespace HairEngine {
 			CudaUtility::deallocateCudaMemory(grad1);
 			CudaUtility::deallocateCudaMemory(grad2);
 			CudaUtility::deallocateCudaMemory(lambdas);
+			CudaUtility::deallocateCudaMemory(dxs);
 		}
 
 	HairEngine_Protected:
 
 		int numIteration; ///< Number of iterations per step
 
+		float vis; ///< The visocity coefficient, used to create clumped and stiction effects for hairs
+
 		float h; ///< The kernel radius
 		float hSearch; ///< The radius used in spatial hashing search
 
 		float rho0; ///< The target density, compute in the setup stage
-
-		/// The target density scale, we compute the target density based on the rest geometry. This parameter can
-		/// use as a multiplier to the computed density
-		float rho0Scale;
 
 		int wrapSize; ///< The cuda computation wrap size
 
@@ -149,15 +165,18 @@ namespace HairEngine {
 
 		float3 *poses; ///< The poses array, where computed positions will be stored in
 		const float3 *oldPoses; ///< The old poses array, where the original postions are stored
+
+		float3 *dxs; ///< The position correction values for each iterations
+
 		float3 *vels; ///< The velocities array
 
-		/// Equals to the particle that needs to be modified, if it needs to change the hair root, then n = hair.nparticle.
-		/// Else it equals to n = hair.nparticle - hair.nstrand
-		int n;
-
-		/// The offset for the particle that needs to modified. If changeHairRoot = true in the constructor, then
-		/// offset = hair.nstrand, otherwise offset = 0
-		int offset;
+//		/// Equals to the particle that needs to be modified, if it needs to change the hair root, then n = hair.nparticle.
+//		/// Else it equals to n = hair.nparticle - hair.nstrand
+//		int n;
+//
+//		/// The offset for the particle that needs to modified. If changeHairRoot = true in the constructor, then
+//		/// offset = hair.nstrand, otherwise offset = 0
+//		int offset;
 
 		bool changeHairRoot; ///< Whether to change the hair root
 
@@ -175,8 +194,7 @@ namespace HairEngine {
 
 		void visualize(std::ostream &os, Hair &hair, const IntegrationInfo &info) override {
 
-			const int & n = solver->n;
-			const int & offset = solver->offset;
+			const int & n = hair.nparticle;
 
 			// Allocate space if needed
 			if (!grad1)
@@ -187,18 +205,22 @@ namespace HairEngine {
 				lambdas = new float[n];
 			if (!rhos)
 				rhos = new float[n];
+			if (!dxs)
+				dxs = new float3[n];
 
 			// Copy from device memory
 			CudaUtility::copyFromDeviceToHost(grad1, solver->grad1, n);
 			CudaUtility::copyFromDeviceToHost(grad2, solver->grad2, n);
 			CudaUtility::copyFromDeviceToHost(lambdas, solver->lambdas, n);
 			CudaUtility::copyFromDeviceToHost(rhos, solver->rhos, n);
+			CudaUtility::copyFromDeviceToHost(dxs, solver->dxs, n);
+
 
 			float rho = 0.0f;
 			for (int i = 0; i < n; ++i) {
 
-				auto li1 = ( i + offset) / hair.nstrand;
-				auto si1 = ( i + offset) % hair.nstrand;
+				auto li1 = i / hair.nstrand;
+				auto si1 = i % hair.nstrand;
 				auto par = hair.strands[si1].particleInfo.beginPtr + li1;
 
 				VPly::writePoint(
@@ -207,7 +229,9 @@ namespace HairEngine {
 						VPly::VPlyVector3fAttr("g1", { grad1[i].x, grad1[i].y, grad1[i].z }),
 						VPly::VPlyFloatAttr("g2", grad2[i]),
 						VPly::VPlyFloatAttr("ld", lambdas[i]),
-						VPly::VPlyFloatAttr("rho", rhos[i])
+						VPly::VPlyFloatAttr("rho", rhos[i]),
+						VPly::VPlyVector3fAttr("v", EigenUtility::toVPlyVector3f(par->vel)),
+						VPly::VPlyVector3fAttr("dx", { dxs[i].x, dxs[i].y, dxs[i].z })
 				);
 				rho += rhos[i];
 			}
@@ -224,6 +248,7 @@ namespace HairEngine {
 			delete [] grad2;
 			delete [] lambdas;
 			delete [] rhos;
+			delete [] dxs;
 		}
 
 	HairEngine_Protected:
@@ -234,6 +259,7 @@ namespace HairEngine {
 		float *grad2 = nullptr; ///< A copy of the solver->grad2 in CPU, used to visualize
 		float *lambdas = nullptr; ///< A copy of the solver->lambdas in CPU, used to visualize
 		float *rhos = nullptr; ///< A copy of the solver->rhos in CPU, used to visualize
+		float3 *dxs = nullptr; ///< A copy of the solver->dxs in CPU, used to visualize
 	};
 }
 

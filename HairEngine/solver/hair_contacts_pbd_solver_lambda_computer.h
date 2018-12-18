@@ -24,15 +24,21 @@ namespace HairEngine {
 	 */
 	struct HairContactsPBDDensityComputer {
 
-		HairContactsPBDDensityComputer(float *rhos, float3 *grad1, float *grad2, float *lambdas,
-				int n, float h, float rho0):
-				rhos(rhos), grad1(grad1), grad2(grad2), lambdas(lambdas), n(n), h(h), rho0(rho0) {
+		HairContactsPBDDensityComputer(
+				float *rhos,
+				float3 *grad1,
+				float *grad2,
+				float *lambdas,
+				int n,
+				float h,
+				float rho0
+		):
+				rhos(rhos), grad1(grad1), grad2(grad2), lambdas(lambdas),
+				n(n), h(h), rho0(rho0) {
 
 			// Compute f1 and f2 based on h
 			f1 = static_cast<float>(315.0 / (64.0 * M_PI * pow(h, 9.0)));
 			f2 = static_cast<float>(-45.0 / (M_PI * pow(h, 6.0)));
-
-			printf("%e %e\n", f1, f2);
 
 		}
 
@@ -50,21 +56,25 @@ namespace HairEngine {
 			// Density = (315 / (64 * pi * h^9)) * (h^2 - r^2)^3 = f1 * (h^2 - r^2)^3
 			float g2 = (h - r); // h - r
 			float g1 = g2 * (h + r); // ( h^2 - r^2)
-			rhos[pid1] += f1 * g1 * g1 * g1; // f1 * (h^2 - r^2)^3
+			g1 = f1 * g1 * g1 * g1; // W(i, j)
+
+			rhos[pid1] += g1; // f1 * (h^2 - r^2)^3
 
 			// Gradient, r = 0 gradient is not defined
 			// Gradient pid1 = (-45 / (pi * h^6)) * (h - r)^2 * (r / length(r))
 			// Gradient pid2 = - Gradient i
 			if (r > 0) {
-				g2 = f2 * g2 * g2; // 1.0 / rho0 * f2 * (h - r)^2
+				g2 = f2 * g2 * g2; // f2 * (h - r)^2
+				// Add grad1 if pid2 is not fixed
 				grad1[pid1] += (g2 / r) * (pos2 - pos1);
-				grad2[pid1] += g2 * g2; // Since the length of (pos2 - pos1) /r is 1
+				// Add grad2 if pid1 is not fixed
+				grad2[pid1] += g2 * g2;
 			}
 		}
 
 		__host__ __device__ __forceinline__
 		void after(int pid1, float3 pos1) {
-			lambdas[pid1] = -fmaxf(rhos[pid1] - rho0, 0.0f) / (length2(grad1[pid1]) + grad2[pid1] + (rho0 * rho0) * 1e-5f);
+			lambdas[pid1] = - fmaxf(rhos[pid1] - rho0, 0.0f) / (length2(grad1[pid1]) + grad2[pid1]);
 		}
 
 		float *rhos; ///< The output array of densities, MUST store in GPU
@@ -82,11 +92,13 @@ namespace HairEngine {
 	struct HairContactsPBDPositionCorrectionComputer {
 
 		HairContactsPBDPositionCorrectionComputer(const float *rhos, const float *lambdas,
-		                           float3 *poses, int n, float h, float rho0, float t):
+		                           float3 *dxs, int n, float h, float rho0):
 				rhos(rhos),
 				lambdas(lambdas),
-				poses(poses),
-				n(n), h(h), rho0(rho0), tInv(1.0f / t) {
+				dxs(dxs),
+				n(n),
+				h(h),
+				rho0(rho0) {
 
 			// Compute f1, f2 and f3 based on h
 			f1 = static_cast<float>(315.0 / (64.0 * M_PI * pow(h, 9.0)));
@@ -94,14 +106,17 @@ namespace HairEngine {
 		}
 
 		__host__ __device__ __forceinline__
-		void before(int pid1, float3 pos1) {}
+		void before(int pid1, float3 pos1) {
+			dxs[pid1] = make_float3(0.0f);
+		}
 
 		__host__ __device__ __forceinline__
 		void operator()(int pid1, int pid2, float3 pos1, float3 pos2, float r) {
 			// Gradient is not defined if r == 0
+			// Only compute dx when it is not fixed
 			if (r > 0) {
 				float g2 = h - r;
-				poses[pid1] += ((lambdas[pid1] + lambdas[pid2]) * f2 * g2 * g2 / r) * (pos1 - pos2);
+				dxs[pid1] += ((lambdas[pid1] + lambdas[pid2]) * f2 * g2 * g2 / r) * (pos1 - pos2);
 			}
 		}
 
@@ -110,11 +125,10 @@ namespace HairEngine {
 
 		const float *rhos;
 		const float *lambdas;
-		float3 *poses;
+		float3 *dxs;
 
 		int n;
 		float h;
-		float tInv; ///< The inverse of time
 		float rho0;
 		float f1;
 		float f2;

@@ -151,10 +151,10 @@ int main(int argc, char **argv) {
 					massSpringSolver->getComputedPoses(),
 					cmcPtr->parPoses,
 					cmcPtr->parVels,
+					ini.GetReal("haircontacts", "viscosity_coefficient"),
 					ini.GetInteger("haircontacts", "iterations"),
-					ini.GetReal("haircontacts", "density_scale"),
 					ini.GetReal("haircontacts", "resolution"),
-					false,
+					ini.GetBoolean("haircontacts", "change_hair_root"),
 					ini.GetInteger("haircontacts", "cuda_wrap_size")
 			).get();
 		}

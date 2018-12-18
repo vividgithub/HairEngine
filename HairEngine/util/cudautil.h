@@ -68,7 +68,7 @@ namespace HairEngine {
 		 * @param n The size to copy
 		 */
 		template <typename T>
-		inline void copyFromHostToDevice(T *dst, T *src, int n) {
+		inline void copyFromHostToDevice(T *dst, const T *src, int n) {
 			cudaMemcpy(dst, src, sizeof(T) * n, cudaMemcpyHostToDevice);
 		}
 
@@ -80,7 +80,7 @@ namespace HairEngine {
 		 * @param n The size to copy
 		 */
 		template <typename T>
-		inline void copyFromDeviceToHost(T *dst, T *src, int n) {
+		inline void copyFromDeviceToHost(T *dst, const T *src, int n) {
 			cudaMemcpy(dst, src, sizeof(T) * n, cudaMemcpyDeviceToHost);
 		}
 
@@ -92,7 +92,7 @@ namespace HairEngine {
 		 * @param n The size to copy
 		 */
 		template <typename T>
-		inline void copyFromDeviceToDevice(T * dst, T *src, int n) {
+		inline void copyFromDeviceToDevice(T * dst, const T *src, int n) {
 			cudaMemcpy(dst, src, sizeof(T) * n, cudaMemcpyDeviceToDevice);
 		}
 

@@ -51,7 +51,7 @@ namespace HairEngine {
 		uint32_t *pHashes = nullptr; ///< The particle hashes value in (CPU)
 		uint32_t *pHashesSwap = nullptr; ///< The swap area for the "pHashes", used in radix sort
 
-		const float3 * posesDevice = nullptr; ///< Store the reference GPU position pointers in the update stage
+		float3 * posesDevice = nullptr; ///< Store the reference GPU position pointers in the update stage
 
 	HairEngine_Public:
 		int *pidsDevice = nullptr; ///< The "pids" copy in the GPU
@@ -103,6 +103,8 @@ namespace HairEngine {
 			pHashes = new uint32_t[numParticle];
 			pHashesSwap = new uint32_t[numParticle];
 			pHashesDevice = CudaUtility::allocateCudaMemory<uint32_t>(numParticle);
+
+			posesDevice = CudaUtility::allocateCudaMemory<float3>(numParticle);
 		}
 
 		~ParticleSpatialHashing() {
@@ -118,6 +120,8 @@ namespace HairEngine {
 			delete[] pHashes;
 			delete[] pHashesSwap;
 			CudaUtility::deallocateCudaMemory(pHashesDevice);
+
+			CudaUtility::deallocateCudaMemory(posesDevice);
 		}
 
 		/**
@@ -130,7 +134,7 @@ namespace HairEngine {
 		 */
 		void update(const float3 *poses, int wrapSize = 8) {
 
-			posesDevice = poses;
+			CudaUtility::copyFromDeviceToDevice(posesDevice, poses, numParticle);
 
 			// Compute the hash value in GPU
 			ParticleSpatialHashing_computeHashValueByPositions(poses, pHashesDevice, dInv, numParticle, numHashShift, wrapSize);
