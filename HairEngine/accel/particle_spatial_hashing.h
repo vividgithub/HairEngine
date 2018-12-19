@@ -5,6 +5,7 @@
 #pragma once
 #include <algorithm>
 #include <cuda_runtime.h>
+#include <device_launch_parameters.h>
 #include "../util/cuda_helper_math.h"
 #include "../util/cudautil.h"
 #include "../precompiled/precompiled.h"
@@ -22,6 +23,20 @@ namespace HairEngine {
 			const int *pids,
 			const float3 *positions,
 			float r,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	);
+
+	template <typename Func, typename RadiusProvider>
+	void ParticleSpatialHashing_rangeSearch(
+			const Func & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			const RadiusProvider & radiusProvider,
 			float3 dInv,
 			int n,
 			int hashShift,
@@ -212,6 +227,37 @@ namespace HairEngine {
 					pidsDevice,
 					posesDevice,
 					r,
+					dInv,
+					numParticle,
+					numHashShift,
+					wrapSize
+			);
+		}
+
+		template <typename Func>
+		void rangeSearch(const Func & func, int wrapSize) {
+			ParticleSpatialHashing_rangeSearch<Func>(
+					func,
+					hashParStartsDevice,
+					hashParEndsDevice,
+					pidsDevice,
+					posesDevice,
+					dInv,
+					numParticle,
+					numHashShift,
+					wrapSize
+			);
+		}
+
+		template <typename Func, typename RadiusProvider>
+		void rangeSearch(const Func & func, const RadiusProvider & radiusProvider, int wrapSize) {
+			ParticleSpatialHashing_rangeSearch<Func>(
+					func,
+					hashParStartsDevice,
+					hashParEndsDevice,
+					pidsDevice,
+					posesDevice,
+					radiusProvider,
 					dInv,
 					numParticle,
 					numHashShift,

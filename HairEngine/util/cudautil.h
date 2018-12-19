@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <functional>
 
+
 namespace HairEngine {
 
 	struct Identity {

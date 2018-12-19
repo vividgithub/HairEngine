@@ -25,7 +25,7 @@ namespace HairEngine {
 		cudaDeviceSynchronize();
 	}
 
-	template <typename Func>
+	template <typename Func, typename RadiusProvider>
 	__global__
 	void ParticleSpatialHashing_rangeSearchKernel(
 			Func func, // Pass by value to the kernel
@@ -33,7 +33,7 @@ namespace HairEngine {
 			const int *hashEnds,
 			const int *pids,
 			const float3 *positions,
-			float r,
+			RadiusProvider radiusProvider,
 			float3 dInv,
 			int n,
 			int hashShift
@@ -47,9 +47,9 @@ namespace HairEngine {
 
 		func.before(pid1, pos1);
 
-		int3 index3Max = make_int3((pos1 + r) * dInv); // Up-Scaling
+		float r = radiusProvider.radius(pid1, pos1);
+		int3 index3Max = make_int3((pos1 + r) * dInv);
 		int3 index3Min = make_int3((pos1 - r) * dInv);
-
 
 		float r2 = r * r;
 		for (int ix = index3Min.x; ix <= index3Max.x; ++ix)
@@ -76,6 +76,35 @@ namespace HairEngine {
 		func.after(pid1, pos1);
 	}
 
+	template <typename Func, typename RadiusProvider>
+	void ParticleSpatialHashing_rangeSearch(
+			const Func & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			const RadiusProvider & radiusProvider,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	) {
+		int numBlock, numThread;
+		CudaUtility::getGridSizeForKernelComputation(n, wrapSize, &numBlock, &numThread);
+
+		ParticleSpatialHashing_rangeSearchKernel<Func><<<numBlock, numThread>>>(func, hashStarts,
+				hashEnds, pids, positions, radiusProvider, dInv, n, hashShift);
+		cudaDeviceSynchronize();
+	}
+
+	struct ConstantRadiusProvider {
+		float r;
+		ConstantRadiusProvider(float r): r(r) {}
+
+		__host__ __device__ __forceinline__
+		float radius(int pid, float3 pos) const { return r; }
+	};
+
 	template <typename Func>
 	void ParticleSpatialHashing_rangeSearch(
 			const Func & func, // Pass by value to the kernel
@@ -89,12 +118,24 @@ namespace HairEngine {
 			int hashShift,
 			int wrapSize
 	) {
-		int numBlock, numThread;
-		CudaUtility::getGridSizeForKernelComputation(n, wrapSize, &numBlock, &numThread);
+		ParticleSpatialHashing_rangeSearch<Func, ConstantRadiusProvider>(func, hashStarts,
+				hashEnds, pids, positions, ConstantRadiusProvider(r), dInv, n, hashShift, wrapSize);
+	}
 
-		ParticleSpatialHashing_rangeSearchKernel<Func><<<numBlock, numThread>>>(func, hashStarts,
-				hashEnds, pids, positions, r, dInv, n, hashShift);
-		cudaDeviceSynchronize();
+	template <typename Func>
+	void ParticleSpatialHashing_rangeSearch(
+			const Func & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	) {
+		ParticleSpatialHashing_rangeSearch<Func, ConstantRadiusProvider>(func, hashStarts,
+				hashEnds, pids, positions, func, dInv, n, hashShift, wrapSize);
 	}
 
 	/*
