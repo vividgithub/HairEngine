@@ -39,76 +39,73 @@ namespace HairEngine {
 	 */
 	class HairContactsPBDSolver: public Solver {
 
+	HairEngine_Public:
+
 		friend class HairContactsPBDVisualizer;
 
 		using DensityComputer = HairContactsPBDDensityComputer;
 		using PositionCorrectionComputer = HairContactsPBDPositionCorrectionComputer;
 		using ViscosityComputer = HairContactsPBDViscosityComputer;
 
-	HairEngine_Public:
+		enum class Mode { CollisionOnly, VolumeOnly, VolumeAndCollision };
 
-		HairContactsPBDSolver(
-				float kernelRadius,
-				float particleSize,
-				float3 *currentPoses,
-				const float3 *oldPoses,
-				float3 *vels,
-				float viscosityCoefficient = 0.05f,
-				int numIteration = 2,
-				float spatialHashingResolution = 1.0f,
-				bool changeHairRoot = false,
-				int wrapSize=8):
-			numIteration(numIteration),
-			h(kernelRadius),
+		struct VolumeConfiguration {
+			float kernelRadius;
+			float particleSize;
+			float viscosity;
+			float spatialHashingResolution;
+			int wrapSize;
+		};
+
+		HairContactsPBDSolver(float3 *currentPoses, const float3 *oldPoses, float3 *vels,
+				Mode mode, const VolumeConfiguration & volumeConf, int numIteration = 2):
 			poses(currentPoses),
 			oldPoses(oldPoses),
 			vels(vels),
-			vis(viscosityCoefficient),
-			hSearch(kernelRadius / spatialHashingResolution),
-			rho0(1.0f / (particleSize * particleSize * particleSize)),
-			changeHairRoot(changeHairRoot),
-			wrapSize(wrapSize) {}
+			mode(mode),
+			numIteration(numIteration),
+			h(volumeConf.kernelRadius),
+			vis(volumeConf.viscosity),
+			hSearch(volumeConf.kernelRadius / volumeConf.spatialHashingResolution),
+			rho0(1.0f / (volumeConf.particleSize * volumeConf.particleSize * volumeConf.particleSize)),
+			volumeWrapSize(volumeConf.wrapSize)
+			{}
 
 		void setup(const Hair &hair, const Eigen::Affine3f &currentTransform) override {
 			Solver::setup(hair, currentTransform);
 
 			// Allocate space
-			rhos = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
-			grad1 = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
-			grad2 = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
-			lambdas = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
-			dxs = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
-//			vels_ = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
+			if (isVolumeCorrectionEnable()) {
+				rhos = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
+				grad1 = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
+				grad2 = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
+				lambdas = CudaUtility::allocateCudaMemory<float>(hair.nparticle);
+				dxs = CudaUtility::allocateCudaMemory<float3>(hair.nparticle);
+				// Allocate the density computer
+				densityComputer = new DensityComputer(rhos, grad1, grad2, lambdas, hair.nparticle, h, rho0);
+				positionCorrectionComputer = new PositionCorrectionComputer(rhos, lambdas, dxs, hair.nparticle, h, rho0);
+				volumePsh = new ParticleSpatialHashing(hair.nparticle, make_float3(hSearch));
+			}
 
-			// Allocate the density computer
-			densityComputer = new DensityComputer(rhos, grad1, grad2, lambdas, hair.nparticle, h, rho0);
-			positionCorrectionComputer = new PositionCorrectionComputer(rhos, lambdas, dxs, hair.nparticle, h, rho0);
-//			viscosityComputer = new ViscosityComputer(vels_, vels, hair.nparticle, h, rho0, vis);
-
-			psh = new ParticleSpatialHashing(hair.nparticle, make_float3(hSearch));
 		}
 
 		void solve(Hair &hair, const IntegrationInfo &info) override {
 			Solver::solve(hair, info);
 
 			//Computer spatial hashing
-			psh->update(poses, wrapSize);
+			volumePsh->update(poses, volumeWrapSize);
 
 			// Iterations
 			for (int _ = 0; _ < numIteration; ++_) {
 
 				auto t1 = std::chrono::high_resolution_clock::now();
-
-				psh->rangeSearch<DensityComputer>(*densityComputer, h, wrapSize);
-
+				volumePsh->rangeSearch<DensityComputer>(*densityComputer, h, volumeWrapSize);
 				auto t2 = std::chrono::high_resolution_clock::now();
-
-				psh->rangeSearch<PositionCorrectionComputer>(*positionCorrectionComputer, h, wrapSize);
-
+				volumePsh->rangeSearch<PositionCorrectionComputer>(*positionCorrectionComputer, h, volumeWrapSize);
 				auto t3 = std::chrono::high_resolution_clock::now();
 
 				// Add dxs to the poses buffer
-				HairContactsPBDSolver_addCorrectionPositions(poses, dxs, hair.nparticle, wrapSize);
+				HairContactsPBDSolver_addCorrectionPositions(poses, dxs, hair.nparticle, volumeWrapSize);
 
 				auto tDensityCompute = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 				auto tVelocityProjection = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
@@ -118,75 +115,66 @@ namespace HairEngine {
 			}
 
 			// Compute the velocities
-			HairContactsPBDSolver_commitParticleVelocities(poses, oldPoses, vels, 1.0f / info.t, hair.nparticle, wrapSize);
-
-			// Compute the velocity viscosity
-//			psh->rangeSearch<ViscosityComputer>(*viscosityComputer, h, wrapSize);
+			// We just use the volume wrap size
+			HairContactsPBDSolver_commitParticleVelocities(poses, oldPoses, vels, 1.0f / info.t, hair.nparticle, volumeWrapSize);
 		}
 
 		void tearDown() override {
 
 			Solver::tearDown();
 
-			delete psh;
+			delete volumePsh;
 			delete densityComputer;
-//			delete viscosityComputer;
-
 			CudaUtility::deallocateCudaMemory(rhos);
 			CudaUtility::deallocateCudaMemory(grad1);
 			CudaUtility::deallocateCudaMemory(grad2);
 			CudaUtility::deallocateCudaMemory(lambdas);
 			CudaUtility::deallocateCudaMemory(dxs);
-//			CudaUtility::deallocateCudaMemory(vels_);
+		}
+
+		bool isVolumeCorrectionEnable() const {
+			return mode == Mode::VolumeOnly || mode == Mode::VolumeAndCollision;
+		}
+
+		bool isCollisionEnable() const {
+			return mode == Mode::CollisionOnly || mode == Mode::VolumeAndCollision;
 		}
 
 	HairEngine_Protected:
 
 		int numIteration; ///< Number of iterations per step
 
-		float vis; ///< The visocity coefficient, used to create clumped and stiction effects for hairs
-
-		float h; ///< The kernel radius
-		float hSearch; ///< The radius used in spatial hashing search
-
-		float rho0; ///< The target density, compute in the setup stage
-
-		int wrapSize; ///< The cuda computation wrap size
-
-		ParticleSpatialHashing *psh = nullptr;
-
-		/// The sum of gradient, equals to \f$ \lvert \sum\limits_{k \neq i} \nabla_k W_{i,k} \rvert^2 $\f
-		float3 *grad1 = nullptr;
-
-		/// The sum of gradient square, equals to \f$ \sum\limits_{k \neq i} \lvert \nabla_k W_{i,k} \rvert^2 $\f
-		float *grad2 = nullptr;
-
-		/// The lambda \f$ \lambda_i $\f define in PBD solver
-		float *lambdas = nullptr;
-
-		float *rhos = nullptr; ///< The densities array, allocated in GPU
+		Mode mode; ///< The execution mode
 
 		float3 *poses; ///< The poses array, where computed positions will be stored in
 		const float3 *oldPoses; ///< The old poses array, where the original postions are stored
-
 		float3 *dxs; ///< The position correction values for each iterations
-
-//		float3 *vels_; ///< An allocated space for storing the velocities before viscosity correction
 		float3 *vels; ///< The velocities array
 
-//		/// Equals to the particle that needs to be modified, if it needs to change the hair root, then n = hair.nparticle.
-//		/// Else it equals to n = hair.nparticle - hair.nstrand
-//		int n;
-//
-//		/// The offset for the particle that needs to modified. If changeHairRoot = true in the constructor, then
-//		/// offset = hair.nstrand, otherwise offset = 0
-//		int offset;
+		/*---------------------------------------------Volume---------------------------------------------*/
+		float vis; ///< The viscosity coefficient, used to create clumped and stiction effects for hairs
+		float h; ///< The kernel radius
+		float hSearch; ///< The radius used in spatial hashing search
+		float rho0; ///< The target density, compute in the setup stage
+		int volumeWrapSize; ///< The cuda computation wrap size in volume correction
 
-		bool changeHairRoot; ///< Whether to change the hair root
-
+		/// The sum of gradient, equals to \f$ \lvert \sum\limits_{k \neq i} \nabla_k W_{i,k} \rvert^2 $\f
+		float3 *grad1 = nullptr;
+		/// The sum of gradient square, equals to \f$ \sum\limits_{k \neq i} \lvert \nabla_k W_{i,k} \rvert^2 $\f
+		float *grad2 = nullptr;
+		/// The lambda \f$ \lambda_i $\f define in PBD solver
+		float *lambdas = nullptr;
+		/// The densities array, allocated in GPU
+		float *rhos = nullptr;
+		/// The particle spatial hashing used in volume correction
+		ParticleSpatialHashing *volumePsh = nullptr;
 		DensityComputer *densityComputer = nullptr; ///< The density computer lambda
 		PositionCorrectionComputer *positionCorrectionComputer = nullptr; ///< The position correction computer lambda
-//		ViscosityComputer *viscosityComputer = nullptr; ///< The viscosity computer lambda
+		/*---------------------------------------------Volume---------------------------------------------*/
+
+
+		/*---------------------------------------------Collision---------------------------------------------*/
+		/*---------------------------------------------Collision---------------------------------------------*/
 	};
 
 	class HairContactsPBDVisualizer: public Visualizer {

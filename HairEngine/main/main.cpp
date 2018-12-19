@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
 		auto gravitySolver = integrator.addSolver<FixedAccelerationApplier>(true, gravity);
 
 		HairContactsPBDSolver *hairContactsSolverPtr = nullptr;
-		CollisionImpulseCudaSolver *collisionImpulseSolverPtr = nullptr;
+//		CollisionImpulseCudaSolver *collisionImpulseSolverPtr = nullptr;
 
 		auto enableHairContacts = ini.GetBoolean("haircontacts", "enable");
 		auto enableHairCollisions = ini.GetBoolean("haircollisions", "enable");
@@ -109,20 +109,20 @@ int main(int argc, char **argv) {
 		cmcPtr = integrator.addSolver<CudaMemoryConverter>(copyOptions).get();
 
 		// Add hair contacts and collisions solver
-		if (enableHairCollisions) {
-
-			smcPtr = integrator.addSolver<CudaSegmentMidpointComputer>().get();
-
-			if (enableHairCollisions)
-				collisionImpulseSolverPtr = integrator.addSolver<CollisionImpulseCudaSolver>(
-						smcPtr,
-						ini.GetInteger("haircollisions", "max_collisions"),
-						ini.GetInteger("haircollisions", "max_collisions_force_count"),
-						ini.GetReal("haircollisions", "stiffness"),
-						ini.GetReal("haircollisions", "resolution"),
-						ini.GetInteger("haircollisions", "cuda_wrap_size")
-				).get();
-		}
+//		if (enableHairCollisions) {
+//
+//			smcPtr = integrator.addSolver<CudaSegmentMidpointComputer>().get();
+//
+//			if (enableHairCollisions)
+//				collisionImpulseSolverPtr = integrator.addSolver<CollisionImpulseCudaSolver>(
+//						smcPtr,
+//						ini.GetInteger("haircollisions", "max_collisions"),
+//						ini.GetInteger("haircollisions", "max_collisions_force_count"),
+//						ini.GetReal("haircollisions", "stiffness"),
+//						ini.GetReal("haircollisions", "resolution"),
+//						ini.GetInteger("haircollisions", "cuda_wrap_size")
+//				).get();
+//		}
 
 		auto massSpringConf = SelleMassSpringSolverBase::Configuration(
 				ini.GetReal("massspring", "stretch_stiffness"),
@@ -143,19 +143,24 @@ int main(int argc, char **argv) {
 		);
 
 		if (enableHairContacts) {
+
+			HairContactsPBDSolver::VolumeConfiguration volumeConf {
+					ini.GetReal("haircontacts", "kernel_radius"),
+					ini.GetReal("haircontacts", "particle_size"),
+					ini.GetReal("haircontacts", "viscosity_coefficient"),
+					ini.GetReal("haircontacts", "resolution"),
+					ini.GetInteger("haircontacts", "cuda_wrap_size")
+			};
+
 			// We use the computed poses from mass spring integration.
 			// With the old positions and current velocities are stored in cmcPtr.
 			hairContactsSolverPtr = integrator.addSolver<HairContactsPBDSolver>(
-					ini.GetReal("haircontacts", "kernel_radius"),
-					ini.GetReal("haircontacts", "particle_size"),
 					massSpringSolver->getComputedPoses(),
 					cmcPtr->parPoses,
 					cmcPtr->parVels,
-					ini.GetReal("haircontacts", "viscosity_coefficient"),
-					ini.GetInteger("haircontacts", "iterations"),
-					ini.GetReal("haircontacts", "resolution"),
-					ini.GetBoolean("haircontacts", "change_hair_root"),
-					ini.GetInteger("haircontacts", "cuda_wrap_size")
+					HairContactsPBDSolver::Mode::VolumeOnly,
+					volumeConf,
+					ini.GetInteger("haircontacts", "iterations")
 			).get();
 		}
 
@@ -212,14 +217,14 @@ int main(int argc, char **argv) {
 			);
 		}
 
-		if (ini.GetBoolean("visualize", "hair_collisions_enable")) {
-			auto hairContactsVisualizer = integrator.addSolver<CollisionImpulseCudaVisualizer>(
-					ini.Get("visualize", "hair_collisions_folder"),
-					ini.Get("visualize", "hair_collisions_name_pattern"),
-					visualizeTime,
-					collisionImpulseSolverPtr
-			);
-		}
+//		if (ini.GetBoolean("visualize", "hair_collisions_enable")) {
+//			auto hairContactsVisualizer = integrator.addSolver<CollisionImpulseCudaVisualizer>(
+//					ini.Get("visualize", "hair_collisions_folder"),
+//					ini.Get("visualize", "hair_collisions_name_pattern"),
+//					visualizeTime,
+//					collisionImpulseSolverPtr
+//			);
+//		}
 
 		if (ini.GetBoolean("visualize", "sdf_collisions_enable")) {
 			auto sdfCollisionVisualizer = integrator.addSolver<SDFCollisionVisualizer>(
