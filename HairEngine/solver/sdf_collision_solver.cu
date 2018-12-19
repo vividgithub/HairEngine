@@ -90,17 +90,16 @@ void SDFCollisionSolver_cudaComputeSDFGrid(const float3 *poses, const int3 *indi
 
 __device__ inline bool SDFCollisionSolver_querySDF(float3 pos, const unsigned long long *grid, const float3 *vels, float3 origin, float3 d, float3 dInv, int3 n, float *outDist, float3 *outGradient, float3 *outV = nullptr) {
 
-	if ((pos.x < origin.x) || (pos.y < origin.y) || (pos.z < origin.z))
+	if ((pos.x <= origin.x) || (pos.y <= origin.y) || (pos.z <= origin.z))
 		return false;
 
-	int3 maxcoor = { n.x - 1, n.y - 1, n.z - 1 };
-	float3 bboxMax = origin + d * make_float3(maxcoor);
+	float3 bboxMax = origin + d * make_float3(n - 1);
 
-	if ((pos.x > bboxMax.x) || (pos.y > bboxMax.y) || (pos.z > bboxMax.z))
+	if ((pos.x >= bboxMax.x) || (pos.y >= bboxMax.y) || (pos.z >= bboxMax.z))
 		return false;
 
 	float3 index3f = (pos - origin) * dInv;
-	int3 index3 = min( make_int3(index3f), maxcoor);
+	int3 index3 = min( make_int3(index3f), n - 2); // The start origin of the cell
 
 	int nyz = n.y * n.z;
 

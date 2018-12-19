@@ -74,7 +74,8 @@ namespace HairEngine {
 
 		__host__ __device__ __forceinline__
 		void after(int pid1, float3 pos1) {
-			lambdas[pid1] = - fmaxf(rhos[pid1] - rho0, 0.0f) / (length2(grad1[pid1]) + grad2[pid1]);
+			// Plus 1e-10f to avoid nan error
+			lambdas[pid1] = - fmaxf(rhos[pid1] - rho0, 0.0f) / (length2(grad1[pid1]) + grad2[pid1] + 1e-10f);
 		}
 
 		float *rhos; ///< The output array of densities, MUST store in GPU
