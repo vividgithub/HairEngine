@@ -19,6 +19,34 @@
 
 namespace HairEngine {
 
+	__device__ __host__ __forceinline__
+	float2 cpa(float3 p0, float3 p1, float3 q0, float3 q1) {
+		auto p0p1 = p1 - p0;
+		auto q0q1 = q1 - q0;
+		auto q0p0 = p0 - q0;
+
+		float a = dot(p0p1, p0p1);
+		float b = dot(p0p1, q0q1);
+		float c = dot(q0q1, q0q1);
+		float d = dot(p0p1, q0p0);
+		float e = dot(q0q1, q0p0);
+
+		float f1 = b * b - a * c;
+
+		float2 t;
+		t.x = (c * d - b * e) / f1;
+		t.y = (b * d - a * e) / f1;
+
+		return t;
+	}
+
+	struct HairContactsPBDCollisionPairInfo {
+		int index; ///< The other index for the pair
+		float3 n; ///< The normalized normal
+		float2 cpa; ///< The closest point approach
+		float tau; ///< The value \f$ \lvert \nabla C \rvert^2 $\f, equals to \f$ 1 - s + s^2 - t + t^2 $\f
+	};
+
 	/**
 	 * Lambda for computing density, grad1 and grad2, first range search in PBD solver
 	 */
@@ -107,9 +135,7 @@ namespace HairEngine {
 		}
 
 		__host__ __device__ __forceinline__
-		void before(int pid1, float3 pos1) {
-			dxs[pid1] = make_float3(0.0f);
-		}
+		void before(int pid1, float3 pos1) {}
 
 		__host__ __device__ __forceinline__
 		void operator()(int pid1, int pid2, float3 pos1, float3 pos2, float r) {
@@ -173,6 +199,105 @@ namespace HairEngine {
 		float viscosity;
 		float volume0;
 		float f1;
+	};
+
+	struct HairContactsPBDCollisionFinder {
+
+		using CollisionPairInfo = HairContactsPBDCollisionPairInfo;
+
+		HairContactsPBDCollisionFinder(int *numPairs, CollisionPairInfo *pairs, const float3 *poses2,
+		                               const float3 *poses1, int numSegment, int numStrand, int maxCollisionPerSegment)
+				: numPairs(numPairs), pairs(pairs), poses2(poses2), poses1(poses1), numSegment(numSegment),
+				  numStrand(numStrand), maxCollisionPerSegment(maxCollisionPerSegment) {}
+
+		__host__ __device__ __forceinline__
+		void before(int sid1, float3 pos1) {
+			numPairs[sid1] = 0;
+		}
+
+		__host__ __device__ __forceinline__
+		float radius(int sid1, float3 pos1) {
+			// Since we compute the psh using current positions, we use poses2 to compute length
+			return length(poses2[sid1 + numStrand] - poses2[sid1]);
+		}
+
+		__host__ __device__ __forceinline__
+		void operator()(int sid1, int sid2, float3 pos1, float3 pos2, float r) {
+
+			int n = numPairs[sid1];
+			if (n >= maxCollisionPerSegment || sid2 <= sid1 || sid1 == sid2 - numStrand)
+				return;
+
+			float3 s1p1 = poses2[sid1];
+			float3 s1p2 = poses2[sid1 + numStrand];
+			float3 s2p1 = poses2[sid2];
+			float3 s2p2 = poses2[sid2 + numStrand];
+//
+//			float3 s1v1 = poses1[sid1] - s1p1;
+//			float3 s1v2 = poses1[sid1 + numStrand] - s1p2;
+//			float3 s2v1 = poses1[sid2] - s2p1;
+//			float3 s2v2 = poses1[sid2 + numStrand] - s2p2;
+
+			float3 s1p1_ = poses1[sid1];
+			float3 s1p2_ = poses1[sid1 + numStrand];
+			float3 s2p1_ = poses1[sid2];
+			float3 s2p2_ = poses1[sid2 + numStrand];
+
+			float2 t = cpa(s1p1, s1p2, s2p1, s2p2);
+
+//			if (sid1 == 77 || sid2 == 1226)
+//				printf("%d --> %d: t={%f, %f}\n", sid1, sid2, t.x, t.y);
+
+			// Ignore adjacent segment collisions
+			if (!(t.x >= 0.0f && t.x <= 1.0f && t.y >= 0.0f && t.y <= 1.0f))
+				return;
+
+			// Check whether collide
+			float c1 = dot(s1p1 - s2p1, cross(s2p2 - s2p1, s1p2 - s2p1));
+			float c2 = dot(s1p1_ - s2p1_, cross(s2p2_ - s2p1_, s1p2_ - s2p1_));
+			bool collided = (c1 >= 0 && c2 <= 0) || (c1 <= 0 && c2 >= 0);
+			if (!collided)
+				return;
+
+//			if (sid1 == 77 || sid2 == 1226)
+//				printf("%d --> %d: c1=%e, c2=%e\n", sid1, sid2, c1, c2);
+
+			float3 dn = lerp(s1p1, s1p2, t.x) - lerp(s2p1, s2p2, t.y);
+			float l0 = length(dn);
+			dn /= l0;
+
+//			float co_dnv = dot(lerp(s1v1, s1v2, t.x), dn) - dot(lerp(s2v1, s2v2, t.y), dn);
+//
+//			if (sid1 == 24)
+//				printf("%d --> %d: l0=%f, co_dnv=%f\n", sid1, sid2, l0, co_dnv);
+
+//			if (co_dnv >= 0.0f || -co_dnv < l0)
+//				return;
+
+			int offset = sid1 + n * numSegment;
+			pairs[offset].index = sid2;
+			pairs[offset].cpa = t;
+			pairs[offset].n = -dn;
+
+			// The inverse of 1.0 / (2 * (1 - s + s^2 - t + t^2))
+			pairs[offset].tau = 0.5f / (1.0f - t.x + t.x * t.x - t.y + t.y * t.y);
+
+			// Update numPairs
+			numPairs[sid1] = n + 1;
+		}
+
+		__host__ __device__ __forceinline__
+		void after(int sid1, float3 pos1) {}
+
+		int *numPairs;
+		CollisionPairInfo *pairs;
+
+		const float3 *poses2; ///< Current position array
+		const float3 *poses1; ///< Previous position array
+
+		int numSegment;
+		int numStrand;
+		int maxCollisionPerSegment;
 	};
 }
 

@@ -24,6 +24,7 @@
 #define HELPER_MATH_H
 
 #include <cuda_runtime.h>
+#include <cstdint>
 
 typedef unsigned int uint;
 typedef unsigned short ushort;
@@ -1520,5 +1521,19 @@ inline __device__ __host__
 float3 project(float3 v, float3 dir) {
 	return dot(v, dir) * dir;
 }
+
+#ifdef __CUDACC__
+__device__ __forceinline__
+float3 atomicAdd(float3 *addr, float3 val) {
+	float *addr_ = reinterpret_cast<float*>(addr);
+	float3 ret;
+
+	ret.x = atomicAdd(addr_, val.x);
+	ret.y = atomicAdd(addr_ + 1, val.y);
+	ret.z = atomicAdd(addr_ + 2, val.z);
+
+	return ret;
+}
+#endif
 
 #endif

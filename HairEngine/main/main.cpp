@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
 				ini.GetInteger("massspring", "cuda_wrap_size")
 		);
 
-		if (enableHairContacts) {
+		if (enableHairContacts || enableHairCollisions) {
 
 			HairContactsPBDSolver::VolumeConfiguration volumeConf {
 					ini.GetReal("haircontacts", "kernel_radius"),
@@ -152,14 +152,30 @@ int main(int argc, char **argv) {
 					ini.GetInteger("haircontacts", "cuda_wrap_size")
 			};
 
+			HairContactsPBDSolver::CollisionConfiguration collisionConf {
+					ini.GetReal("haircollisions", "hair_width"),
+					ini.GetInteger("haircollisions", "max_collisions"),
+					ini.GetReal("haircollisions", "resolution"),
+					ini.GetInteger("haircollisions", "cuda_wrap_size")
+			};
+
+			HairContactsPBDSolver::Mode mode;
+			if (enableHairContacts && enableHairCollisions)
+				mode = HairContactsPBDSolver::Mode::VolumeAndCollision;
+			else if (enableHairContacts)
+				mode = HairContactsPBDSolver::Mode::VolumeOnly;
+			else
+				mode = HairContactsPBDSolver::Mode::CollisionOnly;
+
 			// We use the computed poses from mass spring integration.
 			// With the old positions and current velocities are stored in cmcPtr.
 			hairContactsSolverPtr = integrator.addSolver<HairContactsPBDSolver>(
 					massSpringSolver->getComputedPoses(),
 					cmcPtr->parPoses,
 					cmcPtr->parVels,
-					HairContactsPBDSolver::Mode::VolumeOnly,
+					mode,
 					volumeConf,
+					collisionConf,
 					ini.GetInteger("haircontacts", "iterations")
 			).get();
 		}

@@ -134,7 +134,7 @@ namespace HairEngine {
 			int hashShift,
 			int wrapSize
 	) {
-		ParticleSpatialHashing_rangeSearch<Func, ConstantRadiusProvider>(func, hashStarts,
+		ParticleSpatialHashing_rangeSearch<Func, Func>(func, hashStarts,
 				hashEnds, pids, positions, func, dInv, n, hashShift, wrapSize);
 	}
 
@@ -174,6 +174,18 @@ namespace HairEngine {
 			const int *pids,
 			const float3 *positions,
 			float r,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	);
+
+	template void ParticleSpatialHashing_rangeSearch<HairContactsPBDCollisionFinder>(
+			const HairContactsPBDCollisionFinder & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
 			float3 dInv,
 			int n,
 			int hashShift,
