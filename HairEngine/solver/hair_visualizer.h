@@ -38,7 +38,7 @@ namespace HairEngine {
 		 */
 		HairVisualizer(const std::string & directory, const std::string & filenameTemplate, float timestep, const VPI * vpi = nullptr):
 			Visualizer(directory, filenameTemplate, timestep), vpi(vpi) {
-			if (StringUtility::endswith(filenameTemplate, ".hair"))
+			if (StringUtility::endswith(filenameTemplate, ".hair2"))
 				writeVPly = false;
 			else if (StringUtility::endswith(filenameTemplate, ".vply"))
 				writeVPly = true;

@@ -5,15 +5,43 @@
 #pragma once
 #include <algorithm>
 #include <cuda_runtime.h>
+#include <device_launch_parameters.h>
 #include "../util/cuda_helper_math.h"
 #include "../util/cudautil.h"
-#include "../util/parallutil.h"
 #include "../precompiled/precompiled.h"
 
 namespace HairEngine {
 
 	void ParticleSpatialHashing_computeHashValueByPositions(const float3 *poses, uint32_t *pHashes, float3 dInv,
 			int numParticle, int shift, int wrapSize);
+
+	template <typename Func>
+	void ParticleSpatialHashing_rangeSearch(
+			const Func & func,
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			float r,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	);
+
+	template <typename Func, typename RadiusProvider>
+	void ParticleSpatialHashing_rangeSearch(
+			const Func & func, // Pass by value to the kernel
+			const int *hashStarts,
+			const int *hashEnds,
+			const int *pids,
+			const float3 *positions,
+			const RadiusProvider & radiusProvider,
+			float3 dInv,
+			int n,
+			int hashShift,
+			int wrapSize
+	);
 
 	/**
 	 * ParticleSpatialHashing is a cuda-based implementation of "Optimized Spatial Hashing for Collision
@@ -37,6 +65,8 @@ namespace HairEngine {
 		int *pidsSwap = nullptr; ///< The swap area for the "pids", used in radix sort
 		uint32_t *pHashes = nullptr; ///< The particle hashes value in (CPU)
 		uint32_t *pHashesSwap = nullptr; ///< The swap area for the "pHashes", used in radix sort
+
+		float3 * posesDevice = nullptr; ///< Store the reference GPU position pointers in the update stage
 
 	HairEngine_Public:
 		int *pidsDevice = nullptr; ///< The "pids" copy in the GPU
@@ -88,6 +118,8 @@ namespace HairEngine {
 			pHashes = new uint32_t[numParticle];
 			pHashesSwap = new uint32_t[numParticle];
 			pHashesDevice = CudaUtility::allocateCudaMemory<uint32_t>(numParticle);
+
+			posesDevice = CudaUtility::allocateCudaMemory<float3>(numParticle);
 		}
 
 		~ParticleSpatialHashing() {
@@ -103,6 +135,8 @@ namespace HairEngine {
 			delete[] pHashes;
 			delete[] pHashesSwap;
 			CudaUtility::deallocateCudaMemory(pHashesDevice);
+
+			CudaUtility::deallocateCudaMemory(posesDevice);
 		}
 
 		/**
@@ -114,6 +148,9 @@ namespace HairEngine {
 		 * @param wrapSize The wrapSize for a thread block to execute in cuda
 		 */
 		void update(const float3 *poses, int wrapSize = 8) {
+
+			CudaUtility::copyFromDeviceToDevice(posesDevice, poses, numParticle);
+
 			// Compute the hash value in GPU
 			ParticleSpatialHashing_computeHashValueByPositions(poses, pHashesDevice, dInv, numParticle, numHashShift, wrapSize);
 
@@ -179,6 +216,53 @@ namespace HairEngine {
 			CudaUtility::copyFromHostToDevice(pidsDevice, pids, numParticle);
 			CudaUtility::copyFromHostToDevice(hashParStartsDevice, hashParStarts, numHash);
 			CudaUtility::copyFromHostToDevice(hashParEndsDevice, hashParEnds, numHash);
+		}
+
+		template <typename Func>
+		void rangeSearch(const Func & func, float r, int wrapSize) {
+			ParticleSpatialHashing_rangeSearch<Func>(
+					func,
+					hashParStartsDevice,
+					hashParEndsDevice,
+					pidsDevice,
+					posesDevice,
+					r,
+					dInv,
+					numParticle,
+					numHashShift,
+					wrapSize
+			);
+		}
+
+		template <typename Func>
+		void rangeSearch(const Func & func, int wrapSize) {
+			ParticleSpatialHashing_rangeSearch<Func>(
+					func,
+					hashParStartsDevice,
+					hashParEndsDevice,
+					pidsDevice,
+					posesDevice,
+					dInv,
+					numParticle,
+					numHashShift,
+					wrapSize
+			);
+		}
+
+		template <typename Func, typename RadiusProvider>
+		void rangeSearch(const Func & func, const RadiusProvider & radiusProvider, int wrapSize) {
+			ParticleSpatialHashing_rangeSearch<Func>(
+					func,
+					hashParStartsDevice,
+					hashParEndsDevice,
+					pidsDevice,
+					posesDevice,
+					radiusProvider,
+					dInv,
+					numParticle,
+					numHashShift,
+					wrapSize
+			);
 		}
 	};
 }

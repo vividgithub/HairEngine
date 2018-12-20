@@ -173,10 +173,12 @@ namespace HairEngine {
 				std::swap(poses, prevPoses);
 			}
 
+			std::swap(poses, prevPoses);
+
 			// Compute the velocity, now the final pos result is stored in "prevPoses" (after swapping) and the
 			// old result before iteration is stored in "cmc->parPoses".
  			SelleMassSpringImplicitCudaSolver_getVelocityFromPosition(
-					prevPoses, cmc->parPoses, cmc->parVels, 1.0f / info.t, hair.nparticle, wrapSize
+					poses, cmc->parPoses, cmc->parVels, 1.0f / info.t, hair.nparticle, wrapSize
 			);
 
 			// Particle not commit, so we don't need to apply an update to cmc->parPoses
@@ -186,6 +188,13 @@ namespace HairEngine {
 		}
 
 		float getParticleMass() const { return conf.mass; }
+
+		/**
+		 * Get the current positions' array
+		 * @return Current position array
+		 */
+		float3 *getComputedPoses() { return poses; }
+		const float3 *getComputedPoses() const { return poses; }
 
 	HairEngine_Protected:
 		Configuration conf;

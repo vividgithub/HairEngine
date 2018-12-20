@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <functional>
 
+
 namespace HairEngine {
 
 	struct Identity {
@@ -68,7 +69,7 @@ namespace HairEngine {
 		 * @param n The size to copy
 		 */
 		template <typename T>
-		inline void copyFromHostToDevice(T *dst, T *src, int n) {
+		inline void copyFromHostToDevice(T *dst, const T *src, int n) {
 			cudaMemcpy(dst, src, sizeof(T) * n, cudaMemcpyHostToDevice);
 		}
 
@@ -80,8 +81,20 @@ namespace HairEngine {
 		 * @param n The size to copy
 		 */
 		template <typename T>
-		inline void copyFromDeviceToHost(T *dst, T *src, int n) {
+		inline void copyFromDeviceToHost(T *dst, const T *src, int n) {
 			cudaMemcpy(dst, src, sizeof(T) * n, cudaMemcpyDeviceToHost);
+		}
+
+		/**
+		 * Copy the memory from device to device
+		 * @tparam T The type of the copied source and destination pointer
+		 * @param dst The destination pointer
+		 * @param src The source pointer
+		 * @param n The size to copy
+		 */
+		template <typename T>
+		inline void copyFromDeviceToDevice(T * dst, const T *src, int n) {
+			cudaMemcpy(dst, src, sizeof(T) * n, cudaMemcpyDeviceToDevice);
 		}
 
 		/**
@@ -115,10 +128,19 @@ namespace HairEngine {
 					tempBuffer.emplace_back(transform(*it));
 				copyFromHostToDevice(dst, &(tempBuffer[0]), static_cast<int>(tempBuffer.size()));
 			}
-
 		}
 
-
+		/**
+		 * Get the block size and thread size based on current computation size n and the wrap size
+		 * @param n The computation size
+		 * @param wrapSize The size of the wrap
+		 * @param outNumBlock The number of the block
+		 * @param outNumThread The number of the thread
+		 */
+		inline void getGridSizeForKernelComputation(int n, int wrapSize, int *outNumBlock, int *outNumThread) {
+			*outNumThread = 32 * wrapSize;
+			*outNumBlock = (n + *outNumThread - 1) / *outNumThread;
+ 		}
 	}
 }
 
