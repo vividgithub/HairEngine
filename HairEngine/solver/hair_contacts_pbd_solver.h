@@ -95,33 +95,35 @@ namespace HairEngine {
 			psh->update(poses, wrapSize);
 
 			// Iterations
-			for (int _ = 0; _ < numIteration; ++_) {
-
-				auto t1 = std::chrono::high_resolution_clock::now();
-
-				psh->rangeSearch<DensityComputer>(*densityComputer, h, wrapSize);
-
-				auto t2 = std::chrono::high_resolution_clock::now();
-
-				psh->rangeSearch<PositionCorrectionComputer>(*positionCorrectionComputer, h, wrapSize);
-
-				auto t3 = std::chrono::high_resolution_clock::now();
-
-				// Add dxs to the poses buffer
-				HairContactsPBDSolver_addCorrectionPositions(poses, dxs, hair.nparticle, wrapSize);
-
-				auto tDensityCompute = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-				auto tVelocityProjection = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
-
-				printf("[HairContactsPBDSolver:DensityCompute] Timing %lld ms(%lld us)\n", tDensityCompute / 1000, tDensityCompute);
-				printf("[HairContactsPBDSolver:VelocityCorrect] Timing %lld ms(%lld us)\n", tVelocityProjection / 1000, tVelocityProjection);
-			}
-
-			// Compute the velocities
-			HairContactsPBDSolver_commitParticleVelocities(poses, oldPoses, vels, 1.0f / info.t, hair.nparticle, wrapSize);
+//			for (int _ = 0; _ < numIteration; ++_) {
+//
+//				auto t1 = std::chrono::high_resolution_clock::now();
+//
+//				psh->rangeSearch<DensityComputer>(*densityComputer, h, wrapSize);
+//
+//				auto t2 = std::chrono::high_resolution_clock::now();
+//
+//				psh->rangeSearch<PositionCorrectionComputer>(*positionCorrectionComputer, h, wrapSize);
+//
+//				auto t3 = std::chrono::high_resolution_clock::now();
+//
+//				// Add dxs to the poses buffer
+//				HairContactsPBDSolver_addCorrectionPositions(poses, dxs, hair.nparticle, wrapSize);
+//
+//				auto tDensityCompute = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+//				auto tVelocityProjection = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
+//
+//				printf("[HairContactsPBDSolver:DensityCompute] Timing %lld ms(%lld us)\n", tDensityCompute / 1000, tDensityCompute);
+//				printf("[HairContactsPBDSolver:VelocityCorrect] Timing %lld ms(%lld us)\n", tVelocityProjection / 1000, tVelocityProjection);
+//			}
+//
+//			// Compute the velocities
+//			HairContactsPBDSolver_commitParticleVelocities(poses, oldPoses, vels, 1.0f / info.t, hair.nparticle, wrapSize);
 
 			// Compute the velocity viscosity
 //			psh->rangeSearch<ViscosityComputer>(*viscosityComputer, h, wrapSize);
+
+			psh->rangeSearch(*densityComputer, h, wrapSize);
 		}
 
 		void tearDown() override {

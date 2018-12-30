@@ -75,29 +75,29 @@ namespace HairEngine {
 				for (auto pPtr = sPtr->particleInfo.beginPtr; pPtr != sPtr->particleInfo.endPtr; ++pPtr) {
 					lineStrip.addPoint(
 						EigenUtility::toVPlyVector3f(pPtr->pos),
-						VPly::VPlyVector3fAttr("rpos", EigenUtility::toVPlyVector3f(pPtr->restPos)),
+//						VPly::VPlyVector3fAttr("rpos", EigenUtility::toVPlyVector3f(pPtr->restPos)),
 						VPly::VPlyVector3fAttr("vel", EigenUtility::toVPlyVector3f(pPtr->vel)),
-						VPly::VPlyVector3fAttr("im", EigenUtility::toVPlyVector3f(pPtr->impulse)),
-						VPly::VPlyIntAttr("type", 0) // Means normal particle
+						VPly::VPlyVector3fAttr("im", EigenUtility::toVPlyVector3f(pPtr->impulse))
+//						VPly::VPlyIntAttr("type", 0) // Means normal particle
 					);
 				}
 				lineStrip.stream(os);
 			}
 
-			// Write the additional virtual particle
-			if (vpi) {
-				int nvirtual = vpi->virtualParticleSize();
-				for (int i = 0; i < nvirtual; ++i) {
-					const auto & p = vpi->getVirtualParticle(i);
-					VPly::writePoint(os,
-						EigenUtility::toVPlyVector3f(p.pos),
-						VPly::VPlyVector3fAttr("rpos", EigenUtility::toVPlyVector3f(p.restPos)),
-						VPly::VPlyVector3fAttr("vel", EigenUtility::toVPlyVector3f(p.vel)),
-						VPly::VPlyVector3fAttr("im", EigenUtility::toVPlyVector3f(p.impulse)),
-						VPly::VPlyIntAttr("type", 1) // Means virtual particle
-					);
-				}
-			}
+//			// Write the additional virtual particle
+//			if (vpi) {
+//				int nvirtual = vpi->virtualParticleSize();
+//				for (int i = 0; i < nvirtual; ++i) {
+//					const auto & p = vpi->getVirtualParticle(i);
+//					VPly::writePoint(os,
+//						EigenUtility::toVPlyVector3f(p.pos),
+//						VPly::VPlyVector3fAttr("rpos", EigenUtility::toVPlyVector3f(p.restPos)),
+//						VPly::VPlyVector3fAttr("vel", EigenUtility::toVPlyVector3f(p.vel)),
+//						VPly::VPlyVector3fAttr("im", EigenUtility::toVPlyVector3f(p.impulse)),
+//						VPly::VPlyIntAttr("type", 1) // Means virtual particle
+//					);
+//				}
+//			}
 		}
 	};
 
